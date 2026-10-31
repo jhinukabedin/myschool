@@ -1,0 +1,32 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class SalaryPaymentReversal extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['salary_payment_id', 'amount', 'reason', 'reversed_by', 'reversed_at'];
+
+    protected function casts(): array
+    {
+        return [
+            'amount' => 'decimal:2',
+            'reversed_at' => 'datetime',
+        ];
+    }
+
+    public function salaryPayment(): BelongsTo
+    {
+        return $this->belongsTo(SalaryPayment::class);
+    }
+
+    public function reversedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reversed_by');
+    }
+}

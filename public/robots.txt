@@ -1,2 +1,12 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /dashboard
+Disallow: /login
+Disallow: /admin
+Disallow: /students
+Disallow: /staff
+Disallow: /payroll
+Disallow: /fees
+Disallow: /reports
+Disallow: /admission-enquiries
+Disallow: /website/
