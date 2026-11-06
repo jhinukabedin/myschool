@@ -5,7 +5,7 @@
 @section('content')
     <x-page-header
         eyebrow="{{ __('Overview') }}"
-        :title="__('Welcome back, :name', ['name' => Str::before(auth()->user()->name, ' ')])"
+        :title="__('Welcome back')"
         :subtitle="$session ? __('Live figures for the :session academic session.', ['session' => $session->name]) : __('Create an academic session to activate dashboard metrics.')"
     >
         <x-slot:actions>

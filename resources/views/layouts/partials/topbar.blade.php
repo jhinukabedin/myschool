@@ -1,8 +1,9 @@
 @php
     $user = auth()->user();
     $hour = (int) now()->format('H');
-    $greetingKey = $hour < 12 ? 'Good morning, :name' : ($hour < 17 ? 'Good afternoon, :name' : 'Good evening, :name');
-    $greeting = __($greetingKey, ['name' => Str::before($user?->name ?? __('User'), ' ')]);
+    // Keep personal names out of the app bar: it stays compact and shows only
+    // the account avatar. The full name and role live in the account sheet.
+    $greeting = __($hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening'));
     $locales = config('app.available_locales', ['en' => 'English']);
 @endphp
 
@@ -88,27 +89,55 @@
             </div>
         </div>
 
-        <div x-data="{ open: false }" style="position:relative">
-            <button type="button" class="profile-btn" @click="open = !open" @click.outside="open = false" aria-label="{{ __('Account menu') }}">
+        <div class="profile-wrap" x-data="{ open: false }">
+            <button type="button" class="profile-btn" @click="open = !open" @click.outside="open = false"
+                aria-label="{{ __('Account menu') }}" aria-haspopup="true" :aria-expanded="open"
+                title="{{ $user?->name }}{{ $user?->role ? ' · '.$user->role->name : '' }}">
                 <span class="avatar">
                     @if ($user?->avatar_url)
                         <img src="{{ $user->avatar_url }}" alt="">
                     @else
                         {{ $user?->initials ?? 'U' }}
                     @endif
+                    <span class="avatar-status" aria-hidden="true"></span>
                 </span>
-                <span class="profile-meta">
-                    <span class="name">{{ $user?->name }}</span>
-                    <span class="role">{{ $user?->role?->name ?? __('User') }}</span>
-                </span>
-                <x-icon name="chevron-down" :size="14" style="color:var(--muted-2)" />
             </button>
 
-            <div class="dropdown" x-show="open" x-cloak x-transition.origin.top.right @click.outside="open = false">
-                <div style="padding:10px">
-                    <div style="font-size:13px;font-weight:600">{{ $user?->name }}</div>
-                    <div style="font-size:11px;color:var(--muted-2);margin-top:2px">{{ $user?->email }}</div>
+            <div class="dropdown profile-dropdown" x-show="open" x-cloak x-transition.origin.top.right @click.outside="open = false">
+                <div class="profile-summary">
+                    <span class="avatar avatar-lg">
+                        @if ($user?->avatar_url)
+                            <img src="{{ $user->avatar_url }}" alt="">
+                        @else
+                            {{ $user?->initials ?? 'U' }}
+                        @endif
+                    </span>
+                    <div class="profile-summary-meta">
+                        <div class="profile-summary-name">{{ $user?->name }}</div>
+                        <div class="profile-summary-role">{{ $user?->role?->name ?? __('User') }}</div>
+                        <div class="profile-summary-email">{{ $user?->email }}</div>
+                    </div>
                 </div>
+
+                <div class="dropdown-divider"></div>
+
+                <button type="button" class="dropdown-item" onclick="window.toggleTheme && window.toggleTheme()">
+                    <x-icon name="sun" :size="15" class="theme-icon theme-icon-sun" />
+                    <x-icon name="moon" :size="15" class="theme-icon theme-icon-moon" />
+                    <span>{{ __('Appearance') }}</span>
+                </button>
+
+                <div class="dropdown-lang only-mobile">
+                    <span class="dropdown-lang-label">{{ __('Language') }}</span>
+                    <div class="dropdown-lang-list">
+                        @foreach ($locales as $code => $label)
+                            <a href="{{ route('language.switch', $code) }}"
+                                class="dropdown-lang-option {{ app()->getLocale() === $code ? 'active' : '' }}"
+                                hreflang="{{ $code }}">{{ $code === 'bn' ? 'বাংলা' : strtoupper($code) }}</a>
+                        @endforeach
+                    </div>
+                </div>
+
                 <div class="dropdown-divider"></div>
                 @can('settings.view')
                     <a href="{{ route('settings.index') }}" class="dropdown-item"><x-icon name="settings" :size="15" /> {{ __('Settings') }}</a>
@@ -117,11 +146,12 @@
                 <div class="dropdown-divider"></div>
                 <form method="POST" action="{{ route('logout') }}" data-turbo="false">
                     @csrf
-                    <button type="submit" class="dropdown-item" style="width:100%;border:0;background:transparent">
+                    <button type="submit" class="dropdown-item dropdown-item-danger">
                         <x-icon name="log-out" :size="15" /> {{ __('Sign out') }}
                     </button>
                 </form>
             </div>
         </div>
+
     </div>
 </header>

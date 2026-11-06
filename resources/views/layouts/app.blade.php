@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="dark">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#0b0716">
     <meta name="color-scheme" content="dark light">
@@ -64,6 +64,8 @@
             }
             if (localStorage.getItem('theme') === 'light') {
                 document.documentElement.setAttribute('data-theme', 'light');
+                var themeMeta = document.querySelector('meta[name="theme-color"]');
+                if (themeMeta) themeMeta.setAttribute('content', '#f4f6fc');
             }
         } catch (e) {}
     </script>
@@ -156,6 +158,7 @@
         </div>
     </div>
 
+    @include('layouts.partials.mobile-nav')
     @include('layouts.partials.command-palette')
     @include('layouts.partials.print-developer-footer')
     @stack('modals')
