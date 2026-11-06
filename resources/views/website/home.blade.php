@@ -264,17 +264,29 @@
                 @endforelse
             </div></div>
         </div>
-        <div class="card panel-card reveal" style="margin-top:16px">
-            <div class="panel-head"><h3>আসন্ন অনুষ্ঠান</h3><a href="{{ route('website.events') }}">সব অনুষ্ঠান</a></div>
-            <div class="event-list">
-                @forelse ($events as $event)
-                    <a class="event-row" href="{{ route('website.events') }}">
-                        <span class="event-date"><strong>{{ $event->published_at?->format('d') ?? '—' }}</strong><small>{{ $event->published_at?->format('M') ?? '' }}</small></span>
-                        <span><strong>{{ $event->title }}</strong><small>{{ $event->excerpt ?: Str::limit(strip_tags($event->body), 140) }}</small></span>
-                    </a>
-                @empty
-                    <div class="event-row"><span class="event-date"><strong>—</strong><small></small></span><span><strong>আসন্ন কোনো অনুষ্ঠান নেই</strong><small>নতুন অনুষ্ঠান প্রকাশিত হলে এখানে দেখা যাবে।</small></span></div>
-                @endforelse
+        <div class="home-events-layout">
+            <div class="card panel-card reveal">
+                <div class="panel-head"><h3>আসন্ন অনুষ্ঠান</h3><a href="{{ route('website.events') }}">সব অনুষ্ঠান</a></div>
+                <div class="event-list event-list-two">
+                    @forelse ($events as $event)
+                        <a class="event-row" href="{{ route('website.events') }}">
+                            <span class="event-date"><strong>{{ $event->published_at?->format('d') ?? '—' }}</strong><small>{{ $event->published_at?->format('M') ?? '' }}</small></span>
+                            <span><strong>{{ $event->title }}</strong><small>{{ $event->excerpt ?: Str::limit(strip_tags($event->body), 140) }}</small></span>
+                        </a>
+                    @empty
+                        <div class="event-row"><span class="event-date"><strong>—</strong><small></small></span><span><strong>আসন্ন কোনো অনুষ্ঠান নেই</strong><small>নতুন অনুষ্ঠান প্রকাশিত হলে এখানে দেখা যাবে।</small></span></div>
+                    @endforelse
+                </div>
+            </div>
+
+            <div class="card panel-card reveal home-calendar-card">
+                <div class="panel-head">
+                    <h3><x-icon name="calendar" :size="18" /> একাডেমিক ক্যালেন্ডার</h3>
+                    <a href="{{ route('website.calendar') }}">বিস্তারিত</a>
+                </div>
+                <turbo-frame id="home-calendar">
+                    @include('website._home_calendar', ['calendar' => $calendar])
+                </turbo-frame>
             </div>
         </div>
     </div></section>

@@ -6,6 +6,7 @@ use App\Models\AdmissionEnquiry;
 use App\Models\ClassRoutine;
 use App\Models\ContactMessage;
 use App\Models\Examination;
+use App\Models\Holiday;
 use App\Models\Notice;
 use App\Models\ResultSnapshot;
 use App\Models\SchoolClass;
@@ -13,8 +14,10 @@ use App\Models\Student;
 use App\Models\WebsiteContent;
 use App\Services\DocumentNumberService;
 use App\Services\ExamResultService;
+use App\Support\BanglaCalendar;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -25,11 +28,11 @@ class WebsiteController extends Controller
         private readonly ExamResultService $results
     ) {}
 
-    public function home(): View
+    public function home(Request $request): View
     {
         $notices = Notice::query()->published()->where('audience', 'all')->latest('publish_at')->limit(5)->get();
         $news = WebsiteContent::query()->ofType('news')->publiclyVisible()->latest('published_at')->limit(3)->get();
-        $events = WebsiteContent::query()->ofType('event')->publiclyVisible()->orderBy('published_at')->limit(3)->get();
+        $events = WebsiteContent::query()->ofType('event')->publiclyVisible()->orderBy('published_at')->limit(6)->get();
         $gallery = WebsiteContent::query()->ofType('gallery')->publiclyVisible()->orderBy('sort_order')->limit(6)->get();
         $classes = SchoolClass::query()->ordered()->get();
 
@@ -51,10 +54,14 @@ class WebsiteController extends Controller
             'events' => WebsiteContent::query()->ofType('event')->publiclyVisible()->count(),
         ];
 
+        $calendar = $this->homeCalendar(
+            $this->resolveCalendarMonth($request->query('calendar'))
+        );
+
         return view('website.home', compact(
             'notices', 'news', 'events', 'gallery', 'classes', 'stats', 'slider',
             'introduction', 'administrationMessage', 'administrationMessages', 'principalMessage', 'presidentMessage',
-            'academicItems'
+            'academicItems', 'calendar'
         ));
     }
 
@@ -430,6 +437,105 @@ class WebsiteController extends Controller
             200,
             ['Content-Type' => 'text/plain']
         );
+    }
+
+    /**
+     * The month shown in the homepage academic calendar. Unknown values fall
+     * back to the current month so a hand-edited URL cannot break the page.
+     */
+    private function resolveCalendarMonth(mixed $value): Carbon
+    {
+        if (is_string($value) && preg_match('/^(\d{4})-(\d{2})$/', $value, $matches)) {
+            $year = (int) $matches[1];
+            $month = (int) $matches[2];
+
+            if ($month >= 1 && $month <= 12 && $year >= 2000 && $year <= 2100) {
+                return Carbon::create($year, $month, 1)->startOfMonth();
+            }
+        }
+
+        return now()->startOfMonth();
+    }
+
+    /**
+     * Build the month grid and holiday list for the public academic calendar.
+     *
+     * @return array<string, mixed>
+     */
+    private function homeCalendar(Carbon $month): array
+    {
+        $start = $month->copy()->startOfMonth();
+        $end = $month->copy()->endOfMonth();
+
+        $holidays = Holiday::query()
+            ->whereIn('applies_to', ['all', 'students'])
+            ->whereDate('start_date', '<=', $end->toDateString())
+            ->whereDate('end_date', '>=', $start->toDateString())
+            ->orderBy('start_date')
+            ->get();
+
+        $weeklyOff = Holiday::weeklyOffDays();
+
+        $byDate = [];
+        foreach ($holidays as $holiday) {
+            $from = $holiday->start_date->greaterThan($start) ? $holiday->start_date->copy() : $start->copy();
+            $to = $holiday->end_date->lessThan($end) ? $holiday->end_date->copy() : $end->copy();
+
+            for ($cursor = $from; $cursor->lessThanOrEqualTo($to); $cursor->addDay()) {
+                $byDate[$cursor->toDateString()][] = $holiday->name;
+            }
+        }
+
+        // Bengali calendars start the week on Saturday.
+        $days = array_fill(0, ($start->dayOfWeek + 1) % 7, null);
+
+        for ($day = 1; $day <= $start->daysInMonth; $day++) {
+            $date = $start->copy()->day($day);
+            $key = $date->toDateString();
+
+            $days[] = [
+                'day' => $day,
+                'date' => $key,
+                'is_today' => $date->isToday(),
+                'is_weekly_off' => in_array($date->format('l'), $weeklyOff, true),
+                'holiday_names' => array_values(array_unique($byDate[$key] ?? [])),
+            ];
+        }
+
+        while (count($days) % 7 !== 0) {
+            $days[] = null;
+        }
+
+        $holidayList = $holidays->map(function (Holiday $holiday) {
+            $startMonth = BanglaCalendar::gregorianMonthName($holiday->start_date->month, 'bangla');
+            $endMonth = BanglaCalendar::gregorianMonthName($holiday->end_date->month, 'bangla');
+            $startDay = to_bangla_digits($holiday->start_date->format('j'));
+            $endDay = to_bangla_digits($holiday->end_date->format('j'));
+
+            $dateLabel = match (true) {
+                $holiday->start_date->isSameDay($holiday->end_date) => "{$startDay} {$startMonth}",
+                $holiday->start_date->month === $holiday->end_date->month => "{$startDay}–{$endDay} {$startMonth}",
+                default => "{$startDay} {$startMonth} – {$endDay} {$endMonth}",
+            };
+
+            return [
+                'name' => $holiday->name,
+                'type' => $holiday->type_label,
+                'date_label' => $dateLabel,
+            ];
+        })->values()->all();
+
+        $previous = $month->copy()->subMonthNoOverflow();
+        $next = $month->copy()->addMonthNoOverflow();
+
+        return [
+            'title' => BanglaCalendar::gregorianMonthName($month->month, 'bangla').' '.to_bangla_digits($month->year),
+            'month' => $month->format('Y-m'),
+            'prev_url' => route('website.home', ['calendar' => $previous->format('Y-m')]),
+            'next_url' => route('website.home', ['calendar' => $next->format('Y-m')]),
+            'days' => $days,
+            'holidays' => $holidayList,
+        ];
     }
 
     /**
