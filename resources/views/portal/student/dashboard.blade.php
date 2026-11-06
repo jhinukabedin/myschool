@@ -8,7 +8,24 @@
         $latest = $results->first();
         $latestResult = $latest['result'] ?? null;
         $latestSubjects = collect($latestResult['subjects'] ?? [])->take(4);
+        $guardian = $student->primaryGuardian();
     @endphp
+
+    <div class="portal-panel" style="margin-bottom:16px">
+        <h2>শিক্ষার্থীর তথ্য</h2>
+        <div class="portal-panel-body">
+            <div class="info-list">
+                <div><b>নাম</b><span>{{ $student->full_name }}</span></div>
+                <div><b>Student ID</b><span class="mono">{{ $student->student_code ?? '—' }}</span></div>
+                <div><b>শ্রেণি</b><span>{{ $enrollment?->class?->name ?? '—' }}</span></div>
+                <div><b>শাখা</b><span>{{ $enrollment?->section?->name ?? '—' }}</span></div>
+                <div><b>রোল</b><span>{{ $enrollment?->roll_no ?? '—' }}</span></div>
+                <div><b>শিক্ষাবর্ষ</b><span>{{ $session?->name ?? '—' }}</span></div>
+                <div><b>অভিভাবক</b><span>{{ $guardian?->name ?? '—' }}</span></div>
+                <div><b>অভিভাবকের মোবাইল</b><span>{{ $guardian?->phone ?? '—' }}</span></div>
+            </div>
+        </div>
+    </div>
 
     <div class="portal-cards">
         <div class="portal-stat">

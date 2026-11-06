@@ -13,6 +13,7 @@ class FeeStructureItem extends Model
 
     protected $fillable = [
         'fee_structure_id', 'fee_category_id', 'amount', 'discount_amount',
+        'scholarship_type', 'scholarship_value',
         'frequency', 'due_day', 'is_optional',
     ];
 
@@ -21,8 +22,44 @@ class FeeStructureItem extends Model
         return [
             'amount' => 'decimal:2',
             'discount_amount' => 'decimal:2',
+            'scholarship_value' => 'decimal:2',
             'is_optional' => 'boolean',
         ];
+    }
+
+    /**
+     * Scholarship conceded on this fee line. A percentage is calculated against the
+     * gross amount; a fixed value is capped at the gross amount.
+     */
+    public function scholarshipAmount(): float
+    {
+        return $this->concessionAmount(
+            (float) ($this->attributes['scholarship_value'] ?? 0),
+            (string) ($this->attributes['scholarship_type'] ?? 'fixed'),
+            (float) ($this->attributes['amount'] ?? 0)
+        );
+    }
+
+    public function getScholarshipAmountAttribute(): string
+    {
+        return number_format($this->scholarshipAmount(), 2, '.', '');
+    }
+
+    /**
+     * Resolve a concession expressed either as a percentage of the gross amount or
+     * as a fixed figure, never exceeding the gross amount itself.
+     */
+    public static function concessionAmount(float $value, string $type, float $gross): float
+    {
+        if ($value <= 0 || $gross <= 0) {
+            return 0.0;
+        }
+
+        $conceded = $type === 'percent'
+            ? $gross * (min(100, max(0, $value)) / 100)
+            : min($value, $gross);
+
+        return max(0, round($conceded, 2));
     }
 
     public function structure(): BelongsTo
@@ -42,6 +79,10 @@ class FeeStructureItem extends Model
 
     public function getNetAmountAttribute(): string
     {
-        return number_format(max(0, (float) $this->amount - (float) $this->discount_amount), 2, '.', '');
+        $net = (float) ($this->attributes['amount'] ?? 0)
+            - (float) ($this->attributes['discount_amount'] ?? 0)
+            - $this->scholarshipAmount();
+
+        return number_format(max(0, $net), 2, '.', '');
     }
 }

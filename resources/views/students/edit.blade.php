@@ -3,7 +3,7 @@
 @section('title', 'Edit Student')
 
 @section('content')
-    <x-page-header eyebrow="Students" :title="'Edit '.$student->full_name" :subtitle="'Admission '.$student->admission_no">
+    <x-page-header eyebrow="Students" :title="'Edit '.$student->full_name" :subtitle="'Student ID '.$student->student_code">
         <x-slot:actions>
             <x-button :href="route('students.show', $student)" variant="secondary" icon="arrow-left">Back to profile</x-button>
         </x-slot:actions>

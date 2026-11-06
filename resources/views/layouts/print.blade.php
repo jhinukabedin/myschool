@@ -10,10 +10,11 @@
 <body>
     <div class="print-page">
         <div class="print-hide" style="max-width:900px;margin:0 auto 12px;display:flex;justify-content:flex-end;gap:8px">
-            <button type="button" class="btn btn-secondary" onclick="window.close()">Close</button>
+            <button type="button" class="btn btn-secondary" onclick="if (window.history.length > 1) window.history.back(); else window.location.href='{{ route('dashboard') }}'">Close</button>
             <button type="button" class="btn btn-primary" onclick="window.print()">Print</button>
         </div>
         @yield('content')
     </div>
+    @include('layouts.partials.print-developer-footer')
 </body>
 </html>

@@ -15,7 +15,11 @@
         </x-slot:actions>
     </x-page-header>
 
-    <form method="POST" action="{{ $structure->exists ? route('fees.structures.update', $structure) : route('fees.structures.store') }}" x-data="{ items: {{ Js::from($rows) }} }" x-init="if (!items.length) items.push({ fee_category_id: '', amount: '', discount_amount: 0, frequency: 'monthly', due_day: 10, is_optional: false })">
+    <form method="POST" action="{{ $structure->exists ? route('fees.structures.update', $structure) : route('fees.structures.store') }}" x-data="{
+            currency: @js($schoolSettings['currency'] ?? '৳'),
+            fmt(value) { return this.currency + ' ' + Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+            items: {{ Js::from($rows) }}
+         }" x-init="if (!items.length) items.push({ fee_category_id: '', amount: '', discount_amount: 0, scholarship_type: 'percent', scholarship_value: 0, frequency: 'monthly', due_day: 10, is_optional: false })">
         @csrf
         @if ($structure->exists) @method('PUT') @endif
 
@@ -37,13 +41,13 @@
         <div class="card">
             <div class="card-header">
                 <div><h3 class="card-title">Fee Items</h3><p class="card-sub">Each fee category may appear once</p></div>
-                <button type="button" class="btn btn-secondary btn-sm" @click="items.push({ fee_category_id: '', amount: '', discount_amount: 0, frequency: 'monthly', due_day: 10, is_optional: false })">
+                <button type="button" class="btn btn-secondary btn-sm" @click="items.push({ fee_category_id: '', amount: '', discount_amount: 0, scholarship_type: 'percent', scholarship_value: 0, frequency: 'monthly', due_day: 10, is_optional: false })">
                     <x-icon name="plus" :size="14" /> Add item
                 </button>
             </div>
             <div class="table-wrap">
                 <table class="data-table">
-                    <thead><tr><th style="min-width:190px">Fee category</th><th>Amount</th><th>Discount</th><th>Frequency</th><th>Due day</th><th>Optional</th><th></th></tr></thead>
+                    <thead><tr><th style="min-width:190px">Fee category</th><th>Amount</th><th>Discount</th><th style="min-width:170px">Scholarship</th><th>Frequency</th><th>Due day</th><th>Optional</th><th></th></tr></thead>
                     <tbody>
                         <template x-for="(item, index) in items" :key="index">
                             <tr>
@@ -57,6 +61,21 @@
                                 </td>
                                 <td><input class="input" type="number" min="0" step="0.01" x-model="item.amount" :name="`items[${index}][amount]`" required></td>
                                 <td><input class="input" type="number" min="0" step="0.01" x-model="item.discount_amount" :name="`items[${index}][discount_amount]`"></td>
+                                <td>
+                                    <div style="display:flex;gap:6px;align-items:center">
+                                        <select class="select" style="width:92px" x-model="item.scholarship_type" :name="`items[${index}][scholarship_type]`">
+                                            <option value="percent">% (percent)</option>
+                                            <option value="fixed">Fixed ৳</option>
+                                        </select>
+                                        <input class="input" type="number" min="0" step="0.01" x-model="item.scholarship_value" :name="`items[${index}][scholarship_value]`" :placeholder="item.scholarship_type === 'percent' ? '0%' : '0.00'" style="width:92px">
+                                    </div>
+                                    <div class="cell-sub" style="margin-top:4px" x-show="Number(item.scholarship_value) > 0">
+                                        Waives
+                                        <span x-text="fmt(item.scholarship_type === 'percent'
+                                            ? Number(item.amount || 0) * Math.min(100, Number(item.scholarship_value)) / 100
+                                            : Math.min(Number(item.scholarship_value), Number(item.amount || 0)))"></span>
+                                    </div>
+                                </td>
                                 <td>
                                     <select class="select" x-model="item.frequency" :name="`items[${index}][frequency]`" required>
                                         <option value="monthly">Monthly</option>

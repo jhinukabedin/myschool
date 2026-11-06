@@ -31,7 +31,7 @@
                                 <option value="">Select a student</option>
                                 @foreach ($students as $studentOption)
                                     <option value="{{ $studentOption->id }}" @selected((int) old('student_id') === $studentOption->id)>
-                                        {{ $studentOption->full_name }} · {{ $studentOption->admission_no }}
+                                        {{ $studentOption->full_name }} · Student ID: {{ $studentOption->student_code }}
                                     </option>
                                 @endforeach
                                 @if ($students->isEmpty())
@@ -107,7 +107,7 @@
                         <tr>
                             <td>
                                 <div class="table-primary">{{ $link->student?->full_name }}</div>
-                                <div class="table-secondary">{{ $link->student?->admission_no }}</div>
+                                <div class="table-secondary">Student ID: {{ $link->student?->student_code }}</div>
                             </td>
                             <td>
                                 <div>{{ $link->user?->name }}</div>
@@ -142,7 +142,7 @@
                         <tr>
                             <td>
                                 <div class="table-primary">{{ $link->student?->full_name }}</div>
-                                <div class="table-secondary">{{ $link->student?->admission_no }}</div>
+                                <div class="table-secondary">Student ID: {{ $link->student?->student_code }}</div>
                             </td>
                             <td>
                                 <div>{{ $link->user?->name }}</div>

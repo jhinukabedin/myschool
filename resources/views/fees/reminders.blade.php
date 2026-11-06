@@ -47,7 +47,7 @@
                                         <span class="table-avatar">{{ Str::substr($student->full_name, 0, 1) }}</span>
                                         <div>
                                             <div class="cell-title">{{ $student->full_name }}</div>
-                                            <div class="cell-sub">{{ $student->admission_no }}</div>
+                                            <div class="cell-sub">Student ID: {{ $student->student_code }}</div>
                                         </div>
                                     </div>
                                 </td>

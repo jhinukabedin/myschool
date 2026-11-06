@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Middleware\EnsurePortalRole;
+use App\Http\Middleware\EnsureStaffPortalUser;
 use App\Http\Middleware\EnsureUserHasPermission;
 use App\Http\Middleware\ResolveAcademicSession;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,6 +24,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => EnsureUserHasPermission::class,
             'session.resolve' => ResolveAcademicSession::class,
             'portal' => EnsurePortalRole::class,
+            'staff.portal' => EnsureStaffPortalUser::class,
+        ]);
+
+        // Resolve Bangla/English before the route renders any view.
+        $middleware->web(append: [
+            SetLocale::class,
         ]);
 
         $middleware->redirectGuestsTo(fn (Request $request) => match (true) {

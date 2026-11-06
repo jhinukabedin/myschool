@@ -1,8 +1,9 @@
-@props(['name', 'title', 'maxWidth' => '520px'])
+@props(['name', 'title', 'maxWidth' => '520px', 'open' => false])
 
 <div
-    x-data="{ open: false }"
+    x-data="{ open: @js((bool) $open) }"
     x-on:open-modal.window="if ($event.detail === '{{ $name }}') open = true"
+    x-on:close-modal.window="if ($event.detail === '{{ $name }}') open = false"
     x-on:keydown.escape.window="open = false"
 >
     <template x-teleport="body">

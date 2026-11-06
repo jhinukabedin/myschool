@@ -42,11 +42,18 @@ class AppServiceProvider extends ServiceProvider
             $view->with('schoolSettings', [
                 'name' => school_setting('school_name', config('app.name')),
                 'tagline' => school_setting('school_tagline', 'School Management System'),
+                'shift' => school_setting('school_shift', 'Morning Shift'),
                 'address' => school_setting('school_address', ''),
                 'phone' => school_setting('school_phone', ''),
                 'email' => school_setting('school_email', ''),
                 'logo' => school_setting('school_logo'),
                 'currency' => school_setting('currency_symbol', config('school.currency')),
+            ]);
+            $view->with('printDeveloper', [
+                'name' => school_setting('report_developer_name', 'EduSphere Development'),
+                'website' => school_setting('report_developer_website'),
+                'email' => school_setting('report_developer_email'),
+                'phone' => school_setting('report_developer_phone'),
             ]);
         });
 
@@ -110,6 +117,7 @@ class AppServiceProvider extends ServiceProvider
                 'siteMapSrc' => $this->mapEmbedSrc(school_setting('website_map_embed')),
                 'homeSections' => \App\Services\HomeSections::enabled(school_setting('website_home_sections')),
                 'headerMenu' => $this->publicMenu('header'),
+                'sidebarMenu' => $this->publicMenu('sidebar'),
                 'footerMenu' => $this->publicMenu('footer'),
                 'loginMenu' => $this->publicMenu('login'),
                 'featuredMenu' => $this->publicMenu('featured'),

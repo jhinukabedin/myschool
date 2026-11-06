@@ -12,12 +12,15 @@ use App\Models\Staff;
 use App\Models\Subject;
 use App\Services\AuditLogService;
 use App\Services\RoutineScheduleService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class ClassRoutineController extends Controller
 {
@@ -47,10 +50,10 @@ class ClassRoutineController extends Controller
         return view('academics.routines.index', [
             'routines' => $routines,
             'sessions' => AcademicSession::orderByDesc('start_date')->get(),
-            'classes' => SchoolClass::ordered()->get(),
-            'sections' => Section::orderBy('name')->get(),
+            'classes' => SchoolClass::with('sections')->ordered()->get(),
+            'sections' => Section::with('classes')->ordered()->get(),
             'selectedSessionId' => $sessionId,
-            'slots' => $this->schedule->allSlots(),
+            'hasTimeSlots' => $this->schedule->hasAnyActiveSlots(),
         ]);
     }
 
@@ -133,8 +136,8 @@ class ClassRoutineController extends Controller
         return view('academics.routines.copy', [
             'routine' => $routine->load(['academicSession', 'class', 'section']),
             'sessions' => AcademicSession::orderByDesc('start_date')->get(),
-            'classes' => SchoolClass::ordered()->get(),
-            'sections' => Section::orderBy('name')->get(),
+            'classes' => SchoolClass::with('sections')->ordered()->get(),
+            'sections' => Section::with('classes')->ordered()->get(),
             'targetSessionId' => $session?->id,
             'targetEffectiveFrom' => ($session?->start_date ?? today())->format('Y-m-d'),
         ]);
@@ -155,9 +158,21 @@ class ClassRoutineController extends Controller
 
         $this->assertUniqueContext($data);
 
-        $routine->load(['entries']);
+        $routine->load(['entries.timeSlot']);
 
-        $copy = DB::transaction(function () use ($routine, $data, $request) {
+        $slotMap = [];
+        foreach ($routine->entries as $entry) {
+            $sourceSlot = $entry->timeSlot;
+            $targetSlot = $sourceSlot ? $this->schedule->resolveSlotForClass($data['class_id'], $sourceSlot) : null;
+            if (! $targetSlot) {
+                throw ValidationException::withMessages([
+                    'class_id' => 'The target class uses different periods. Configure matching periods before copying this routine.',
+                ]);
+            }
+            $slotMap[$entry->routine_time_slot_id] = $targetSlot->id;
+        }
+
+        $copy = DB::transaction(function () use ($routine, $data, $request, $slotMap) {
             $copy = ClassRoutine::create([
                 ...$data,
                 'notes' => $routine->notes,
@@ -168,7 +183,7 @@ class ClassRoutineController extends Controller
             foreach ($routine->entries as $entry) {
                 $this->schedule->saveEntry($copy, [
                     'day' => $entry->day,
-                    'routine_time_slot_id' => $entry->routine_time_slot_id,
+                    'routine_time_slot_id' => $slotMap[$entry->routine_time_slot_id],
                     'subject_id' => $entry->subject_id,
                     'staff_id' => $entry->staff_id,
                     'classroom' => $entry->classroom,
@@ -274,20 +289,129 @@ class ClassRoutineController extends Controller
         return $this->backToRoutine($routine, null, 'Timetable cell cleared. The rest of the routine is unchanged.');
     }
 
-    public function print(ClassRoutine $routine): View
+    public function print(ClassRoutine $routine, Request $request): View
     {
         return view('academics.routines.print', [
             ...$this->timetableData($routine),
-            'autoPrint' => false,
+            ...$this->routineBrandData(),
+            'routineFontRegular' => asset('fonts/NotoSansBengali-Regular.ttf'),
+            'routineFontBold' => asset('fonts/NotoSansBengali-Bold.ttf'),
+            'pdfDownloadUrl' => route('routines.pdf', $routine),
+            'backUrl' => route('routines.show', $routine),
+            'isEmbedded' => $request->boolean('embed'),
         ]);
     }
 
-    public function pdf(ClassRoutine $routine): View
+    public function pdf(ClassRoutine $routine): Response
     {
+        return $this->downloadPdf($routine);
+    }
+
+    public function publicPdf(ClassRoutine $routine): Response
+    {
+        abort_unless($routine->is_published, 404);
+
+        return $this->downloadPdf($routine, 'bn');
+    }
+
+    public function publicShow(ClassRoutine $routine, Request $request): View
+    {
+        abort_unless($routine->is_published, 404);
+
         return view('academics.routines.print', [
             ...$this->timetableData($routine),
-            'autoPrint' => true,
+            ...$this->routineBrandData(),
+            'routineFontRegular' => asset('fonts/NotoSansBengali-Regular.ttf'),
+            'routineFontBold' => asset('fonts/NotoSansBengali-Bold.ttf'),
+            'pdfDownloadUrl' => route('website.class-routine.pdf', $routine),
+            'backUrl' => route('website.class-routine'),
+            'isEmbedded' => $request->boolean('embed'),
+            // The public website is Bangla-first, so its printable routine stays
+            // Bangla even when the visitor's interface locale is English.
+            'documentLocale' => 'bn',
         ]);
+    }
+
+    public function toggleWebsiteVisibility(Request $request, ClassRoutine $routine): RedirectResponse
+    {
+        $publish = ! $routine->is_published;
+        if ($publish && ! $routine->entries()->exists()) {
+            return back()->with('error', 'Add timetable subjects before publishing this routine.');
+        }
+
+        $before = $routine->is_published;
+        $routine->update(['is_published' => $publish, 'updated_by' => $request->user()?->id]);
+        $this->audit->record(
+            $publish ? 'class_routine_published' : 'class_routine_unpublished',
+            'Academics',
+            ($publish ? 'Published' : 'Unpublished')." {$routine->class?->name} Section {$routine->section?->name} routine on website",
+            $routine,
+            ['is_published' => $before],
+            ['is_published' => $publish]
+        );
+
+        return back()->with('success', $publish ? 'Routine is now visible on the website.' : 'Routine has been hidden from the website.');
+    }
+
+    private function downloadPdf(ClassRoutine $routine, ?string $documentLocale = null): Response
+    {
+        $fontDir = storage_path('fonts');
+        if (! is_dir($fontDir)) {
+            mkdir($fontDir, 0775, true);
+        }
+        foreach (['NotoSansBengali-Regular.ttf', 'NotoSansBengali-Bold.ttf'] as $font) {
+            if (! is_file($fontDir.DIRECTORY_SEPARATOR.$font)) {
+                copy(public_path('fonts/'.$font), $fontDir.DIRECTORY_SEPARATOR.$font);
+            }
+        }
+
+        $filename = str($routine->class?->name.'-'.$routine->section?->name.'-routine')->slug().'.pdf';
+
+        $pdf = Pdf::loadView('academics.routines.pdf', [
+            ...$this->timetableData($routine),
+            ...$this->routineBrandData(embedLogo: true),
+            'documentLocale' => $documentLocale,
+        ])->setPaper('a4', 'landscape');
+
+        $fontMetrics = $pdf->getDomPDF()->getFontMetrics();
+        foreach ([
+            ['weight' => 'normal', 'path' => $fontDir.'/NotoSansBengali-Regular.ttf'],
+            ['weight' => 'bold', 'path' => $fontDir.'/NotoSansBengali-Bold.ttf'],
+        ] as $font) {
+            if (! $fontMetrics->registerFont(
+                ['family' => 'RoutineBengali', 'weight' => $font['weight'], 'style' => 'normal'],
+                str_replace('\\', '/', $font['path'])
+            )) {
+                throw new \RuntimeException('Could not register the Bengali routine font.');
+            }
+        }
+
+        return $pdf->download($filename);
+    }
+
+    /** @return array{routineLogo: ?string, routineLogoMark: string, routineEstablishedYear: mixed} */
+    private function routineBrandData(bool $embedLogo = false): array
+    {
+        $path = (string) school_setting('website_logo_path', '');
+        $logo = null;
+
+        if ($path !== '') {
+            $disk = Storage::disk('public');
+            if ($embedLogo && $disk->exists($path)) {
+                $mime = $disk->mimeType($path);
+                if (in_array($mime, ['image/jpeg', 'image/png', 'image/gif'], true)) {
+                    $logo = 'data:'.$mime.';base64,'.base64_encode($disk->get($path));
+                }
+            } elseif (! $embedLogo) {
+                $logo = asset('storage/'.ltrim($path, '/'));
+            }
+        }
+
+        return [
+            'routineLogo' => $logo,
+            'routineLogoMark' => (string) school_setting('website_logo_mark', 'HS'),
+            'routineEstablishedYear' => school_setting('school_established_year'),
+        ];
     }
 
     /**
@@ -297,8 +421,8 @@ class ClassRoutineController extends Controller
     {
         return [
             'sessions' => AcademicSession::orderByDesc('start_date')->get(),
-            'classes' => SchoolClass::ordered()->get(),
-            'sections' => Section::orderBy('name')->get(),
+            'classes' => SchoolClass::with('sections')->ordered()->get(),
+            'sections' => Section::with('classes')->ordered()->get(),
         ];
     }
 
@@ -333,7 +457,7 @@ class ClassRoutineController extends Controller
         return [
             'routine' => $routine,
             'days' => $this->schedule->workingDays(),
-            'slots' => $this->schedule->activeSlots(),
+            'slots' => $this->schedule->activeSlots((int) $routine->class_id),
             'entryMap' => $entryMap,
             'cellData' => $cellData,
             'subjects' => Subject::query()->orderBy('name')->get(),

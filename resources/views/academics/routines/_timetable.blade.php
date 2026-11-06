@@ -7,17 +7,17 @@
 
 @if ($slots->isEmpty())
     <div class="info-box" style="margin:16px 20px">
-        No active time slots are configured yet. An administrator can add periods under
-        <strong>Class Routine &rarr; Days &amp; Time Slots</strong>.
+        {{ __('No active time slots are configured yet. An administrator can add periods under') }}
+        <strong>{{ __('Class Routine → Days & Time Slots') }}</strong>.
     </div>
 @else
-    <div class="routine-table-wrap" role="region" aria-label="Class routine timetable" tabindex="0">
+    <div class="routine-table-wrap" role="region" aria-label="{{ __('Class routine timetable') }}" tabindex="0">
         <table @class(['routine-table', 'routine-table-print' => $print])>
             <thead>
                 <tr>
                     <th class="routine-day-col" scope="col">
-                        <span class="routine-axis-label">Day</span>
-                        <small>Vertical rows</small>
+                        <span class="routine-axis-label">{{ __('Day') }}</span>
+                        <small>{{ __('Vertical rows') }}</small>
                     </th>
                     @foreach ($slots as $slot)
                         <th scope="col" @class(['routine-slot-break' => ! $slot->isTeaching()])>
@@ -31,7 +31,7 @@
                 @foreach ($days as $dayKey => $dayLabel)
                     <tr>
                         <th class="routine-day-col" scope="row">
-                            <span class="routine-day-name">{{ $dayLabel }}</span>
+                            <span class="routine-day-name">{{ __($dayLabel) }}</span>
                         </th>
                         @foreach ($slots as $slot)
                             @php
@@ -49,7 +49,7 @@
                                     @if ($entry)
                                         <span class="routine-cell-subject">{{ $entry->subject?->name }}</span>
                                         <span class="routine-cell-meta">
-                                            {{ $entry->routine?->class?->name }}@if ($entry->routine?->section) &middot; Sec {{ $entry->routine->section->name }}@endif
+                                            {{ $entry->routine?->class?->name }}@if ($entry->routine?->section) · {{ __('Sec') }} {{ $entry->routine->section->name }}@endif
                                         </span>
                                         @if ($entry->classroom)
                                             <span class="routine-cell-room">{{ $entry->classroom }}</span>
@@ -64,10 +64,10 @@
                                         class="routine-cell-button"
                                         data-routine-cell
                                         data-day="{{ $dayKey }}"
-                                        data-day-label="{{ $dayLabel }}"
+                                        data-day-label="{{ __($dayLabel) }}"
                                         data-slot="{{ $slot->id }}"
                                         data-time="{{ $slot->time_range }}"
-                                        title="{{ $entry ? 'Edit '.$entry->subject?->name : 'Assign a subject' }}">
+                                        title="{{ $entry ? __('Edit :subject', ['subject' => $entry->subject?->name]) : __('Assign a subject') }}">
                                         @if ($entry)
                                             <span class="routine-cell-subject">{{ $entry->subject?->name }}</span>
                                             <span class="routine-cell-meta">{{ $entry->teacher?->full_name }}</span>

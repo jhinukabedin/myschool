@@ -28,14 +28,7 @@
             @endif
         </article>
         <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
-            <div class="card contact-card">
-                <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">আরও দেখুন</h3>
-                <a href="{{ route('website.about') }}" style="display:block;padding:7px 0">বিদ্যালয় পরিচিতি</a>
-                <a href="{{ route('website.administration-message') }}" style="display:block;padding:7px 0">প্রশাসনের বাণী</a>
-                <a href="{{ route('website.president-message') }}" style="display:block;padding:7px 0">সভাপতির বাণী</a>
-                <a href="{{ route('website.faculty') }}" style="display:block;padding:7px 0">শিক্ষকবৃন্দ</a>
-                <a href="{{ route('website.admission') }}" style="display:block;padding:7px 0">ভর্তি তথ্য</a>
-            </div>
+            @include('website._sidebar')
         </aside>
     </div></section>
 @endsection

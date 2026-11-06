@@ -55,6 +55,7 @@
             </form>
         </article>
         <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
+            @include('website._sidebar')
             <div class="card contact-card">
                 <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">জরুরি তথ্য</h3>
                 <p>আবেদন জমা দেওয়ার পর বিদ্যালয় অফিস আপনার দেওয়া ফোন নম্বরে যোগাযোগ করবে।</p>

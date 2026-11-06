@@ -1,10 +1,21 @@
 <?php
 
 return [
-    'currency' => '৳',
+    'currency' => 'à§³',
     'currency_code' => 'BDT',
     'date_format' => 'd M Y',
     'timezone' => 'Asia/Dhaka',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fee billing window
+    |--------------------------------------------------------------------------
+    | How many months ahead of the current month are shown/treated as payable
+    | by default. Past-due months are always included. Future months beyond
+    | this window stay hidden (and out of outstanding totals) until a user
+    | with fee-collection permission explicitly opts in to advance payment.
+    */
+    'fee_window_months_ahead' => 1,
 
     /*
     |--------------------------------------------------------------------------
@@ -42,6 +53,14 @@ return [
         'fees.collect' => ['name' => 'Collect fees and issue receipts', 'module' => 'Fees'],
         'fees.reverse' => ['name' => 'Cancel or refund payments', 'module' => 'Fees'],
         'fees.waive' => ['name' => 'Approve waivers and adjustments', 'module' => 'Fees'],
+
+        'scholarships.view' => ['name' => 'View scholarships', 'module' => 'Fees'],
+        'scholarships.create' => ['name' => 'Create scholarships', 'module' => 'Fees'],
+        'scholarships.update' => ['name' => 'Edit scholarships', 'module' => 'Fees'],
+        'scholarships.delete' => ['name' => 'Delete scholarships', 'module' => 'Fees'],
+        'scholarships.approve' => ['name' => 'Approve scholarships', 'module' => 'Fees'],
+        'scholarships.suspend' => ['name' => 'Suspend / reactivate scholarships', 'module' => 'Fees'],
+        'scholarships.apply_to_invoices' => ['name' => 'Apply scholarship to existing unpaid invoices', 'module' => 'Fees'],
 
         'attendance.view' => ['name' => 'View attendance', 'module' => 'Attendance'],
         'attendance.manage' => ['name' => 'Mark attendance', 'module' => 'Attendance'],
@@ -89,7 +108,164 @@ return [
         'website.menus' => ['name' => 'Manage public website menus', 'module' => 'Website'],
         'website.code' => ['name' => 'Edit approved website code snippets', 'module' => 'Website'],
         'portals.manage' => ['name' => 'Create and link student/parent portal accounts', 'module' => 'Portals'],
+        'subscription.view' => ['name' => 'View subscription and module access status', 'module' => 'Administration'],
+        'subscription.manage' => ['name' => 'Enable or lock school modules', 'module' => 'Administration'],
+        'access.manage' => ['name' => 'Give permissions to other users', 'module' => 'Administration'],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Self-managed roles
+    |--------------------------------------------------------------------------
+    | Users in these roles use the permissions of their role directly (the
+    | School Administrator's create, edit and delete rights come from the role,
+    | which the super administrator controls). Every other staff user only has
+    | the permissions explicitly given to them, one by one.
+    */
+    'self_managed_roles' => ['admin'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Subscription modules
+    |--------------------------------------------------------------------------
+    | The super administrator can enable each paid module. The website content
+    | module is core and always available. Module locks are applied on top of
+    | normal role permissions, so a user needs both an enabled module and the
+    | matching role permission to open a page.
+    */
+    'modules' => [
+        'students' => [
+            'name' => 'Student Management',
+            'description' => 'Admissions, student records, promotion and portal accounts.',
+            'sort_order' => 10,
+        ],
+        'academics' => [
+            'name' => 'Academic Management',
+            'description' => 'Sessions, classes, sections, subjects, routines and shifts.',
+            'sort_order' => 20,
+        ],
+        'attendance' => [
+            'name' => 'Attendance',
+            'description' => 'Student attendance registers and reports.',
+            'sort_order' => 30,
+        ],
+        'exams' => [
+            'name' => 'Examination & Results',
+            'description' => 'Examinations, marks entry, grading and result publishing.',
+            'sort_order' => 40,
+        ],
+        'fees' => [
+            'name' => 'Fees & Payments',
+            'description' => 'Fee structures, collection, receipts, scholarships and reminders.',
+            'sort_order' => 50,
+        ],
+        'finance' => [
+            'name' => 'Finance & Accounts',
+            'description' => 'Expenses, other income and income-versus-expense reporting.',
+            'sort_order' => 60,
+        ],
+        'staff' => [
+            'name' => 'Staff Management',
+            'description' => 'Staff profiles, attendance, leave and qualifications.',
+            'sort_order' => 70,
+        ],
+        'payroll' => [
+            'name' => 'Payroll',
+            'description' => 'Salary structures, payroll processing, payslips and reports.',
+            'sort_order' => 80,
+        ],
+        'communication' => [
+            'name' => 'Communication',
+            'description' => 'Notice board, WhatsApp reminders and contact messages.',
+            'sort_order' => 90,
+        ],
+        'reports' => [
+            'name' => 'Reports',
+            'description' => 'Session, collection, finance and management reports.',
+            'sort_order' => 100,
+        ],
+        'administration' => [
+            'name' => 'Administration',
+            'description' => 'School settings, users, roles, audit log and portal accounts.',
+            'sort_order' => 110,
+        ],
+        'core' => [
+            'name' => 'System Access',
+            'description' => 'Subscription, user access and role management. Always available.',
+            'core' => true,
+            'sort_order' => 115,
+        ],
+        'website' => [
+            'name' => 'Website Content',
+            'description' => 'Public website pages, menus, media and result search.',
+            'core' => true,
+            'sort_order' => 120,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Features
+    |--------------------------------------------------------------------------
+    | Each feature is a menu-level area inside a module. A route belongs to the
+    | feature whose prefix matches it most specifically. Access then works in
+    | layers:
+    |   1. Core features (module "core" or "website") are always open.
+    |   2. A feature is open when its module is enabled in the subscription.
+    |   3. Otherwise it opens only when the super administrator has unlocked
+    |      that feature for the user's role (role_feature_grants).
+    |   4. The role must still hold the matching permission.
+    */
+    'features' => [
+        'subscription' => ['name' => 'Subscription & Modules', 'module' => 'core', 'routes' => ['subscription.'], 'page' => 'subscription.index'],
+
+        'student-records' => ['name' => 'Student records & admissions', 'module' => 'students', 'routes' => ['students.', 'admissions.', 'enquiries.'], 'page' => 'students.index'],
+        'promotion' => ['name' => 'Promotion', 'module' => 'students', 'routes' => ['promotion.'], 'page' => 'promotion.index'],
+
+        'subjects' => ['name' => 'Subjects & class-subject map', 'module' => 'academics', 'routes' => ['subjects.', 'class-subjects.'], 'page' => 'subjects.index'],
+        'classes-sections' => ['name' => 'Classes & sections', 'module' => 'academics', 'routes' => ['classes.', 'sections.'], 'page' => 'classes.index'],
+        'sessions' => ['name' => 'Academic sessions', 'module' => 'academics', 'routes' => ['sessions.'], 'page' => 'sessions.index'],
+        'teacher-assignments' => ['name' => 'Teacher assignments', 'module' => 'academics', 'routes' => ['assignments.'], 'page' => 'assignments.index'],
+        'class-routine' => ['name' => 'Class routine', 'module' => 'academics', 'routes' => ['routines.'], 'page' => 'routines.index'],
+        'holidays-calendar' => ['name' => 'Holidays & academic calendar', 'module' => 'academics', 'routes' => ['holidays.'], 'page' => 'holidays.index'],
+        'shifts' => ['name' => 'Shifts', 'module' => 'academics', 'routes' => ['shifts.'], 'page' => 'shifts.index'],
+
+        'attendance' => ['name' => 'Attendance register & report', 'module' => 'attendance', 'routes' => ['attendance.'], 'page' => 'attendance.index'],
+
+        'exams' => ['name' => 'Exams, marks & results', 'module' => 'exams', 'routes' => ['exams.'], 'page' => 'exams.index'],
+
+        'fee-structure' => ['name' => 'Fee structures', 'module' => 'fees', 'routes' => ['fees.structures.'], 'page' => 'fees.structures.index'],
+        'fee-collection' => ['name' => 'Fee collection & payment history', 'module' => 'fees', 'routes' => ['fees.collection.', 'fees.quick.', 'fees.payment-history', 'fees.deletion-log', 'payments.'], 'page' => 'fees.collection.index'],
+        'scholarships' => ['name' => 'Scholarships', 'module' => 'fees', 'routes' => ['fees.scholarships.'], 'page' => 'fees.scholarships.index'],
+        'fee-reminders' => ['name' => 'WhatsApp fee reminders', 'module' => 'fees', 'routes' => ['fees.reminders.'], 'page' => 'fees.reminders.index'],
+
+        'expenses' => ['name' => 'Expenses', 'module' => 'finance', 'routes' => ['expenses.'], 'page' => 'expenses.index'],
+        'other-income' => ['name' => 'Other income', 'module' => 'finance', 'routes' => ['other-incomes.'], 'page' => 'other-incomes.index'],
+
+        'reports' => ['name' => 'Reports & analytics', 'module' => 'reports', 'routes' => ['reports.'], 'page' => 'reports.index'],
+        'session-report' => ['name' => 'Session report', 'module' => 'reports', 'routes' => ['session-report.'], 'page' => 'session-report.index'],
+
+        'staff-management' => ['name' => 'Staff profiles, attendance & leave', 'module' => 'staff', 'routes' => ['staff.'], 'page' => 'staff.index'],
+        'payroll' => ['name' => 'Salary & payroll', 'module' => 'payroll', 'routes' => ['payroll.'], 'page' => 'payroll.index'],
+
+        'notices' => ['name' => 'Notice board', 'module' => 'communication', 'routes' => ['notices.'], 'page' => 'notices.index'],
+
+        'user-access' => ['name' => 'User access & permissions', 'module' => 'core', 'routes' => ['access.'], 'page' => 'access.index'],
+        'users-roles' => ['name' => 'Users & roles', 'module' => 'administration', 'routes' => ['users.', 'roles.'], 'page' => 'users.index'],
+        'audit-log' => ['name' => 'Audit log', 'module' => 'administration', 'routes' => ['audit.'], 'page' => 'audit.index'],
+        'school-settings' => ['name' => 'School settings', 'module' => 'administration', 'routes' => ['settings.', 'admin.'], 'page' => 'settings.index'],
+        'portal-accounts' => ['name' => 'Student & parent portal accounts', 'module' => 'administration', 'routes' => ['portal-accounts.'], 'page' => 'portal-accounts.index'],
+
+        'website' => ['name' => 'Website content', 'module' => 'website', 'routes' => ['website-admin.', 'website-content.', 'website-menus.', 'media.', 'messages.'], 'page' => 'website-admin.index'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Roles that never receive feature unlocks
+    |--------------------------------------------------------------------------
+    | Portal accounts stay in their own portals. Super admin already has access.
+    */
+    'portal_only_roles' => ['student', 'parent'],
 
     'roles' => [
         'super-admin' => [
@@ -106,6 +282,8 @@ return [
                 'students.promote', 'enquiries.view', 'enquiries.manage',
                 'academics.view', 'academics.manage',
                 'fees.view', 'fees.manage', 'fees.collect', 'fees.reverse', 'fees.waive',
+                'scholarships.view', 'scholarships.create', 'scholarships.update', 'scholarships.delete',
+                'scholarships.approve', 'scholarships.suspend', 'scholarships.apply_to_invoices',
                 'attendance.view', 'attendance.manage', 'attendance.report',
                 'exams.view', 'exams.manage', 'marks.enter', 'marks.submit', 'marks.approve', 'marks.correct', 'results.view',
                 'assignments.view', 'assignments.manage',
@@ -116,7 +294,41 @@ return [
                 'reports.view', 'reports.export',
                 'settings.view', 'audit.view', 'website.view', 'website.manage',
                 'website.publish', 'website.media', 'website.menus', 'website.code', 'portals.manage',
+                'subscription.view', 'settings.manage', 'access.manage',
             ],
+        ],
+        'principal' => [
+            'name' => 'Principal',
+            'description' => 'Oversees academics, attendance, exams, staff and reports with read-only finance access.',
+            'permissions' => [
+                'dashboard.view',
+                'students.view', 'students.create', 'students.update', 'students.archive', 'students.promote',
+                'enquiries.view', 'enquiries.manage',
+                'academics.view', 'academics.manage',
+                'attendance.view', 'attendance.manage', 'attendance.report',
+                'exams.view', 'exams.manage', 'marks.enter', 'marks.submit', 'marks.approve', 'marks.correct',
+                'results.view', 'assignments.view', 'assignments.manage',
+                'routines.view', 'routines.create', 'routines.edit', 'routines.delete', 'routines.copy', 'routines.print',
+                'fees.view', 'finance.view', 'scholarships.view',
+                'staff.view', 'payroll.view',
+                'notices.view', 'notices.manage', 'communication.whatsapp',
+                'reports.view', 'reports.export',
+                'settings.view', 'audit.view', 'website.view',
+            ],
+            'is_system' => false,
+        ],
+        'data-entry' => [
+            'name' => 'Data Entry',
+            'description' => 'Enters admissions, attendance, marks and student details without delete or finance rights.',
+            'permissions' => [
+                'dashboard.view',
+                'students.view', 'students.create', 'students.update',
+                'enquiries.view', 'enquiries.manage',
+                'academics.view', 'attendance.view', 'attendance.manage',
+                'exams.view', 'marks.enter', 'results.view',
+                'fees.view', 'notices.view',
+            ],
+            'is_system' => false,
         ],
         'accountant' => [
             'name' => 'Accountant',

@@ -5,7 +5,8 @@
 @section('content')
     <section class="page-hero"><div class="container"><div class="breadcrumb">প্রচ্ছদ / শিক্ষাক্রম</div><h1>শিক্ষাক্রম</h1><p>ক্লাসভিত্তিক বিষয় ও একাডেমিক কার্যক্রম</p></div></section>
 
-    <section class="section"><div class="container">
+    <section class="section"><div class="container inner-grid">
+        <div>
         <div class="section-head"><h2 class="section-title">একাডেমিক কার্যক্রম</h2><span class="badge">{{ $session?->name ?? 'চলমান সেশন' }}</span></div>
         <div class="card article" style="margin-bottom:18px">
             <p>আমাদের শিক্ষাক্রম শিক্ষার্থীদের মৌলিক জ্ঞান, সৃজনশীলতা ও সমস্যা সমাধানের দক্ষতা গড়ে তোলার লক্ষ্যে সাজানো হয়েছে। প্রতিটি ক্লাসের জন্য নির্ধারিত বিষয়, পাঠ্যক্রম ও মূল্যায়ন পদ্ধতি নিচে দেওয়া হয়েছে।</p>
@@ -30,5 +31,10 @@
                 <div class="card article"><p>এখনো কোনো ক্লাস বা বিষয় কনফিগার করা হয়নি।</p></div>
             @endforelse
         </div>
+        </div>
+
+        <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
+            @include('website._sidebar')
+        </aside>
     </div></section>
 @endsection

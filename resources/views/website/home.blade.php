@@ -344,34 +344,5 @@
     </style>
 @endpush
 
-@push('scripts')
-    <script>
-        (() => {
-            const items = Array.from(document.querySelectorAll('[data-home-gallery-image]'));
-            const dialog = document.getElementById('home-gallery-lightbox');
-            const image = document.getElementById('home-gallery-image');
-            const caption = document.getElementById('home-gallery-caption');
-            if (!items.length || !dialog || !image || !caption) return;
 
-            let active = 0;
-            const show = (index) => {
-                active = (index + items.length) % items.length;
-                const item = items[active];
-                image.src = item.dataset.homeGalleryImage;
-                image.alt = item.dataset.homeGalleryTitle || '';
-                caption.textContent = item.dataset.homeGalleryTitle || '';
-                if (!dialog.open) dialog.showModal();
-            };
 
-            items.forEach((item, index) => item.addEventListener('click', () => show(index)));
-            document.querySelector('[data-home-gallery-prev]')?.addEventListener('click', () => show(active - 1));
-            document.querySelector('[data-home-gallery-next]')?.addEventListener('click', () => show(active + 1));
-            document.querySelector('[data-home-gallery-close]')?.addEventListener('click', () => dialog.close());
-            dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
-            dialog.addEventListener('keydown', (event) => {
-                if (event.key === 'ArrowLeft') show(active - 1);
-                if (event.key === 'ArrowRight') show(active + 1);
-            });
-        })();
-    </script>
-@endpush

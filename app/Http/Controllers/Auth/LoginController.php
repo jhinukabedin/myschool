@@ -54,6 +54,15 @@ class LoginController extends Controller
             ]);
         }
 
+        // Student and parent accounts sign in only through their portal pages.
+        if (in_array($user->role?->slug, config('school.portal_only_roles', []), true)) {
+            $this->audit->record('login_portal_redirect', 'Security', "{$user->name} tried the staff login", $user);
+
+            throw ValidationException::withMessages([
+                $key => 'Student and parent accounts sign in from the portal login page.',
+            ]);
+        }
+
         Auth::login($user, $remember);
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();

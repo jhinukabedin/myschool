@@ -21,6 +21,7 @@ class QuickPaymentRequest extends FormRequest
             'reference_no' => ['nullable', 'string', 'max:80'],
             'paid_at' => ['required', 'date'],
             'note' => ['nullable', 'string', 'max:255'],
+            'include_future' => ['nullable', 'boolean'],
         ];
     }
 }

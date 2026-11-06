@@ -14,7 +14,9 @@
         "vite": "^6.0.11"
     },
     "dependencies": {
+        "@hotwired/turbo": "^8.0.23",
         "alpinejs": "^3.17.5",
-        "chart.js": "^4.6.1"
+        "chart.js": "^4.6.1",
+        "sweetalert2": "^11.26.25"
     }
 }

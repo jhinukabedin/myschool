@@ -1,201 +1,284 @@
-
+/**
+ * Public website interactions.
+ *
+ * Turbo Drive swaps the page body without a full reload, so everything here is
+ * re-initialised on `turbo:load`. Per-page listeners are attached through one
+ * AbortController per boot, which keeps them from stacking up across visits.
+ */
 (() => {
-  const body = document.body;
+  let controller = null;
 
-  // IMPORTANT: keep the sticky navigation outside the <header>.
-  // A position:sticky element is constrained by its parent. When the nav
-  // lives inside the header, it stops sticking as soon as the header ends.
-  const header = document.querySelector('header');
-  const nav = document.querySelector('.main-nav');
-  if (header && nav && nav.parentElement === header) {
-    header.after(nav);
-  }
+  const boot = () => {
+    if (controller) controller.abort();
+    controller = new AbortController();
+    const { signal } = controller;
+    const body = document.body;
 
-  const drawer = document.querySelector('.drawer');
-  const overlay = document.querySelector('.drawer-overlay');
-  const menuBtn = document.querySelector('.menu-btn');
-  const closeBtn = document.querySelector('.drawer-close');
+    // Keep the sticky navigation outside the <header> so position:sticky works.
+    const header = document.querySelector('header');
+    const nav = document.querySelector('.main-nav');
+    if (header && nav && nav.parentElement === header) {
+      header.after(nav);
+    }
 
-  const openDrawer = () => {
-    if(!drawer) return;
-    drawer.classList.add('open');
-    overlay?.classList.add('open');
-    body.classList.add('drawer-open');
-    drawer.setAttribute('aria-hidden','false');
-    menuBtn?.setAttribute('aria-expanded','true');
-  };
-  const closeDrawer = () => {
-    if(!drawer) return;
-    drawer.classList.remove('open');
-    overlay?.classList.remove('open');
-    body.classList.remove('drawer-open');
-    drawer.setAttribute('aria-hidden','true');
-    menuBtn?.setAttribute('aria-expanded','false');
-  };
-  menuBtn?.addEventListener('click',openDrawer);
-  closeBtn?.addEventListener('click',closeDrawer);
-  overlay?.addEventListener('click',closeDrawer);
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
-  drawer?.querySelectorAll('a').forEach(a=>{
-    a.addEventListener('click',e=>{
-      if(a.parentElement?.classList.contains('drawer-group')) return;
-      closeDrawer();
-    });
-  });
+    const drawer = document.querySelector('.drawer');
+    const overlay = document.querySelector('.drawer-overlay');
+    const menuBtn = document.querySelector('.menu-btn');
+    const closeBtn = document.querySelector('.drawer-close');
 
-  const syncNav = () => {
-    if(!nav) return;
-    // Desktop: show the compact school logo inside the sticky menu only
-    // after the page has started scrolling. Tablet/mobile: keep it visible
-    // whenever the links collapse into the drawer (900px and below).
-    const mobile = window.innerWidth <= 900;
-    nav.classList.toggle('scrolled', mobile || window.scrollY > 40);
-  };
-  window.addEventListener('scroll',syncNav,{passive:true});
-  window.addEventListener('resize',syncNav);
-  syncNav();
-
-  const current = location.pathname.split('/').pop() || 'index.html';
-  document.querySelectorAll('.nav-links a,.drawer-nav a,.side-menu a').forEach(a=>{
-    const href=(a.getAttribute('href')||'').split('#')[0];
-    if(href && href===current) a.classList.add('active');
-  });
-
-  const observer = new IntersectionObserver(entries=>{
-    entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('show')});
-  },{threshold:.08});
-  document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
-
-  // Hero slider
-  const slides=[...document.querySelectorAll('.hero-slide')];
-  const dots=[...document.querySelectorAll('.hero-dot')];
-  let index=0;
-  const showSlide=i=>{
-    slides.forEach((s,n)=>s.classList.toggle('active',n===i));
-    dots.forEach((d,n)=>d.classList.toggle('active',n===i));
-    index=i;
-  };
-  dots.forEach((d,i)=>d.addEventListener('click',()=>showSlide(i)));
-  if(slides.length>1) setInterval(()=>showSlide((index+1)%slides.length),5000);
-
-  // Administration messages slider (slides when there are more items than fit)
-  const messageSlider=document.querySelector('.message-slider');
-  if(messageSlider){
-    const track=messageSlider.querySelector('.message-track');
-    const cards=[...messageSlider.querySelectorAll('.message-card')];
-    const prevBtn=messageSlider.closest('section')?.querySelector('.message-prev');
-    const nextBtn=messageSlider.closest('section')?.querySelector('.message-next');
-    let mIndex=0;
-
-    const visibleCount=()=>{
-      const w=window.innerWidth;
-      const d=messageSlider.dataset;
-      if(w<=760) return parseInt(d.visibleMobile||'1',10);
-      if(w<=900) return parseInt(d.visibleTablet||'2',10);
-      return parseInt(d.visibleDesktop||'2',10);
+    const openDrawer = () => {
+      if (!drawer) return;
+      drawer.classList.add('open');
+      overlay?.classList.add('open');
+      body.classList.add('drawer-open');
+      drawer.setAttribute('aria-hidden', 'false');
+      menuBtn?.setAttribute('aria-expanded', 'true');
     };
 
-    const gapSize=()=>{
-      const styles=getComputedStyle(track);
-      return parseFloat(styles.columnGap||styles.gap||'18')||18;
+    const closeDrawer = () => {
+      if (!drawer) return;
+      drawer.classList.remove('open');
+      overlay?.classList.remove('open');
+      body.classList.remove('drawer-open');
+      drawer.setAttribute('aria-hidden', 'true');
+      menuBtn?.setAttribute('aria-expanded', 'false');
     };
 
-    const renderMessages=()=>{
-      if(!track||!cards.length) return;
-      const visible=Math.max(1,Math.min(visibleCount(),cards.length));
-      const maxIndex=Math.max(0,cards.length-visible);
-      mIndex=Math.max(0,Math.min(mIndex,maxIndex));
-      messageSlider.style.setProperty('--message-visible',visible);
-      const gap=gapSize();
-      const cardWidth=(messageSlider.clientWidth-((visible-1)*gap))/visible;
-      track.style.transform=`translate3d(-${mIndex*(cardWidth+gap)}px, 0, 0)`;
-      if(prevBtn) prevBtn.disabled=mIndex<=0;
-      if(nextBtn) nextBtn.disabled=mIndex>=maxIndex;
-      const nav=messageSlider.closest('section')?.querySelector('.message-nav');
-      if(nav) nav.style.display=maxIndex>0?'':'none';
+    menuBtn?.addEventListener('click', openDrawer, { signal });
+    closeBtn?.addEventListener('click', closeDrawer, { signal });
+    overlay?.addEventListener('click', closeDrawer, { signal });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); }, { signal });
+
+    // Drawer accordion: first tap expands a section, the second follows the link.
+    drawer?.querySelectorAll('.drawer-nav .drawer-group > a').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        const group = link.parentElement;
+        const hasSubmenu = !!group?.querySelector('.drawer-submenu a');
+
+        if (!hasSubmenu || group.classList.contains('open')) {
+          // Nothing to expand, or the section is already open: follow the link.
+          closeDrawer();
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        drawer.querySelectorAll('.drawer-group.open').forEach((other) => {
+          if (other !== group) other.classList.remove('open');
+        });
+
+        group.classList.add('open');
+      }, { signal });
+    });
+
+    // Leaf links close the drawer before navigating.
+    drawer?.querySelectorAll('.drawer-nav .drawer-submenu a').forEach((link) => {
+      link.addEventListener('click', closeDrawer, { signal });
+    });
+
+    const syncNav = () => {
+      if (!nav) return;
+      const mobile = window.innerWidth <= 900;
+      nav.classList.toggle('scrolled', mobile || window.scrollY > 40);
     };
+    window.addEventListener('scroll', syncNav, { passive: true, signal });
+    window.addEventListener('resize', syncNav, { signal });
+    syncNav();
 
-    prevBtn?.addEventListener('click',()=>{mIndex=Math.max(0,mIndex-1);renderMessages()});
-    nextBtn?.addEventListener('click',()=>{
-      const visible=Math.max(1,Math.min(visibleCount(),cards.length));
-      mIndex=Math.min(cards.length-visible,mIndex+1);
-      renderMessages();
+    // Highlight the link for the current page (works for extension-less URLs).
+    const here = location.pathname.replace(/\/+$/, '');
+    document.querySelectorAll('.nav-links a, .drawer-nav a, .side-menu a').forEach((a) => {
+      const href = (a.getAttribute('href') || '').split(/[?#]/)[0];
+      if (!href) return;
+      const path = new URL(href, location.origin).pathname.replace(/\/+$/, '');
+      a.classList.toggle('active', path !== '' && path === here);
     });
-    window.addEventListener('resize',renderMessages);
-    renderMessages();
-  }
-})();
 
-document.querySelectorAll('[data-demo-login]').forEach(form=>form.addEventListener('submit',e=>{e.preventDefault();const m=form.querySelector('.form-message');if(m)m.textContent='ডেমো লগইন সফল। Dashboard-এ নেওয়া হচ্ছে...';setTimeout(()=>location.href='student-dashboard.html',700)}));
-document.querySelectorAll('[data-demo-register]').forEach(form=>form.addEventListener('submit',e=>{e.preventDefault();const m=form.querySelector('.form-message');if(m){m.textContent='ডেমো রেজিস্ট্রেশন সম্পন্ন হয়েছে।';m.style.color='#28723a'}}));
-document.querySelectorAll('.show-pass').forEach(btn=>btn.addEventListener('click',()=>{const i=document.getElementById(btn.dataset.target);if(i){i.type=i.type==='password'?'text':'password';btn.textContent=i.type==='password'?'দেখুন':'লুকান'}}));
+    // Reveal-on-scroll, re-observed after each Turbo visit.
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add('show');
+        });
+      }, { threshold: 0.08 });
 
+      document.querySelectorAll('.reveal:not(.show)').forEach((el) => observer.observe(el));
+      signal.addEventListener('abort', () => observer.disconnect(), { once: true });
+    }
 
-/* V5.8 mobile submenu accordion.
-   First tap on a section expands its submenu; once expanded, tapping the
-   section title again follows its link to the landing page. Groups without
-   children navigate immediately. */
-document.addEventListener("DOMContentLoaded",function(){
-  document.querySelectorAll(".drawer-nav .drawer-group > a").forEach(function(link){
-    link.addEventListener("click",function(e){
-      var group=link.parentElement;
-      if(!group) return;
+    // Hero slider.
+    const slides = [...document.querySelectorAll('.hero-slide')];
+    const dots = [...document.querySelectorAll('.hero-dot')];
 
-      // No children -> behave like a normal link.
-      if(!group.querySelector(".drawer-submenu a")) return;
+    if (slides.length) {
+      let index = Math.max(0, slides.findIndex((slide) => slide.classList.contains('active')));
 
-      // Already open -> let the browser follow the section link.
-      if(group.classList.contains("open")) return;
+      const showSlide = (next) => {
+        slides.forEach((slide, i) => slide.classList.toggle('active', i === next));
+        dots.forEach((dot, i) => dot.classList.toggle('active', i === next));
+        index = next;
+      };
 
-      e.preventDefault();
-      e.stopPropagation();
+      dots.forEach((dot, i) => dot.addEventListener('click', () => showSlide(i), { signal }));
 
-      document.querySelectorAll(".drawer-nav .drawer-group.open").forEach(function(other){
-        if(other!==group) other.classList.remove("open");
-      });
-      group.classList.add("open");
-    });
-  });
-});
-
-/* V5.8 demo management workflows */
-document.addEventListener("DOMContentLoaded",function(){
-  const admissionForm=document.getElementById("admissionForm");
-  if(admissionForm){
-    admissionForm.addEventListener("submit",function(e){
-      e.preventDefault();
-      const id="ADM-2026-"+String(Math.floor(1000+Math.random()*8999));
-      localStorage.setItem("school_last_application",JSON.stringify({id:id,status:"Submitted",name:admissionForm.elements.name?.value||"Applicant",time:new Date().toLocaleString()}));
-      const msg=document.getElementById("admissionMsg");
-      if(msg){msg.innerHTML="আবেদন সংরক্ষিত হয়েছে। আপনার Application ID: <b>"+id+"</b> <a href='payment.html' style='color:#673095'>পেমেন্ট করুন →</a>";msg.style.color="#28723a";}
-    });
-  }
-  const statusForm=document.getElementById("statusForm");
-  if(statusForm){
-    statusForm.addEventListener("submit",function(e){
-      e.preventDefault();
-      const id=document.getElementById("applicationId").value.trim();
-      const saved=JSON.parse(localStorage.getItem("school_last_application")||"null");
-      const box=document.getElementById("statusResult");
-      if(saved && saved.id===id){
-        box.innerHTML="<div class='payment-box'><strong>"+saved.id+"</strong><div style='margin-top:7px'><span class='badge green'>"+saved.status+"</span></div><p style='margin:8px 0 0'>Applicant: "+saved.name+"</p><small>Submitted: "+saved.time+"</small></div>";
-      }else{
-        box.innerHTML="<div class='portal-note'>এই Application ID-এর কোনো demo record পাওয়া যায়নি। নতুন আবেদন করলে এই browser-এ status সংরক্ষিত হবে।</div>";
+      if (slides.length > 1) {
+        const timer = window.setInterval(() => showSlide((index + 1) % slides.length), 5000);
+        signal.addEventListener('abort', () => window.clearInterval(timer), { once: true });
       }
+    }
+
+    // Administration message slider.
+    const messageSlider = document.querySelector('.message-slider');
+    if (messageSlider) {
+      const track = messageSlider.querySelector('.message-track');
+      const cards = [...messageSlider.querySelectorAll('.message-card')];
+      const prevBtn = messageSlider.closest('section')?.querySelector('.message-prev');
+      const nextBtn = messageSlider.closest('section')?.querySelector('.message-next');
+      let mIndex = 0;
+
+      const visibleCount = () => {
+        const w = window.innerWidth;
+        const d = messageSlider.dataset;
+        if (w <= 760) return parseInt(d.visibleMobile || '1', 10);
+        if (w <= 900) return parseInt(d.visibleTablet || '2', 10);
+        return parseInt(d.visibleDesktop || '2', 10);
+      };
+
+      const gapSize = () => {
+        const styles = getComputedStyle(track);
+        return parseFloat(styles.columnGap || styles.gap || '18') || 18;
+      };
+
+      const renderMessages = () => {
+        if (!track || !cards.length) return;
+        const visible = Math.max(1, Math.min(visibleCount(), cards.length));
+        const maxIndex = Math.max(0, cards.length - visible);
+        mIndex = Math.max(0, Math.min(mIndex, maxIndex));
+        messageSlider.style.setProperty('--message-visible', visible);
+        const gap = gapSize();
+        const cardWidth = (messageSlider.clientWidth - ((visible - 1) * gap)) / visible;
+        track.style.transform = `translate3d(-${mIndex * (cardWidth + gap)}px, 0, 0)`;
+        if (prevBtn) prevBtn.disabled = mIndex <= 0;
+        if (nextBtn) nextBtn.disabled = mIndex >= maxIndex;
+        const navEl = messageSlider.closest('section')?.querySelector('.message-nav');
+        if (navEl) navEl.style.display = maxIndex > 0 ? '' : 'none';
+      };
+
+      prevBtn?.addEventListener('click', () => { mIndex = Math.max(0, mIndex - 1); renderMessages(); }, { signal });
+      nextBtn?.addEventListener('click', () => {
+        const visible = Math.max(1, Math.min(visibleCount(), cards.length));
+        mIndex = Math.min(cards.length - visible, mIndex + 1);
+        renderMessages();
+      }, { signal });
+      window.addEventListener('resize', renderMessages, { signal });
+      renderMessages();
+    }
+
+    // Password reveal toggles.
+    document.querySelectorAll('.show-pass').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const input = document.getElementById(btn.dataset.target);
+        if (!input) return;
+        input.type = input.type === 'password' ? 'text' : 'password';
+        btn.textContent = input.type === 'password' ? 'দেখুন' : 'লুকান';
+      }, { signal });
     });
-  }
-  document.querySelectorAll("[data-gateway]").forEach(function(btn){
-    btn.addEventListener("click",function(){
-      document.querySelectorAll("[data-gateway]").forEach(x=>x.classList.remove("selected"));
-      btn.classList.add("selected");
-      const area=document.getElementById("paymentArea");
-      if(area) area.innerHTML="<div class='payment-box'><b>"+btn.dataset.gateway+"</b><p style='margin:6px 0'>Demo payment checkout ready.</p><button class='btn btn-purple' type='button' onclick=\"alert('Demo payment successful. Real gateway API integration required for live transactions.')\">Proceed to Pay ৳ ১,৫০০</button></div>";
-    });
-  });
-  document.querySelectorAll("[data-admin-login]").forEach(function(form){
-    form.addEventListener("submit",function(e){e.preventDefault();location.href="admin-dashboard.html";});
-  });
-  document.querySelectorAll("[data-portal-login]").forEach(function(form){
-    form.addEventListener("submit",function(e){e.preventDefault();location.href=form.dataset.target||"portal-login.html";});
-  });
-});
+
+    // Image gallery lightbox.
+    const gallery = document.getElementById('gallery-lightbox');
+    if (gallery) {
+      const items = [...document.querySelectorAll('[data-gallery-image]')];
+      const image = document.getElementById('gallery-lightbox-image');
+      const caption = document.getElementById('gallery-lightbox-caption');
+
+      if (items.length && image && caption) {
+        let active = 0;
+        const show = (index) => {
+          active = (index + items.length) % items.length;
+          const item = items[active];
+          image.src = item.dataset.galleryImage;
+          image.alt = item.dataset.galleryTitle || '';
+          caption.textContent = [item.dataset.galleryTitle, item.dataset.galleryCaption].filter(Boolean).join(' · ');
+          if (!gallery.open) gallery.showModal();
+        };
+
+        items.forEach((item, index) => item.addEventListener('click', () => show(index), { signal }));
+        document.querySelector('[data-gallery-prev]')?.addEventListener('click', () => show(active - 1), { signal });
+        document.querySelector('[data-gallery-next]')?.addEventListener('click', () => show(active + 1), { signal });
+        document.querySelector('[data-gallery-close]')?.addEventListener('click', () => gallery.close(), { signal });
+        gallery.addEventListener('click', (event) => { if (event.target === gallery) gallery.close(); }, { signal });
+        gallery.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowLeft') show(active - 1);
+          if (event.key === 'ArrowRight') show(active + 1);
+        }, { signal });
+      }
+    }
+
+    // Homepage gallery lightbox.
+    const homeGallery = document.getElementById('home-gallery-lightbox');
+    if (homeGallery) {
+      const items = [...document.querySelectorAll('[data-home-gallery-image]')];
+      const image = document.getElementById('home-gallery-image');
+      const caption = document.getElementById('home-gallery-caption');
+
+      if (items.length && image && caption) {
+        let active = 0;
+        const show = (index) => {
+          active = (index + items.length) % items.length;
+          const item = items[active];
+          image.src = item.dataset.homeGalleryImage;
+          image.alt = item.dataset.homeGalleryTitle || '';
+          caption.textContent = item.dataset.homeGalleryTitle || '';
+          if (!homeGallery.open) homeGallery.showModal();
+        };
+
+        items.forEach((item, index) => item.addEventListener('click', () => show(index), { signal }));
+        document.querySelector('[data-home-gallery-prev]')?.addEventListener('click', () => show(active - 1), { signal });
+        document.querySelector('[data-home-gallery-next]')?.addEventListener('click', () => show(active + 1), { signal });
+        document.querySelector('[data-home-gallery-close]')?.addEventListener('click', () => homeGallery.close(), { signal });
+        homeGallery.addEventListener('click', (event) => { if (event.target === homeGallery) homeGallery.close(); }, { signal });
+        homeGallery.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowLeft') show(active - 1);
+          if (event.key === 'ArrowRight') show(active + 1);
+        }, { signal });
+      }
+    }
+
+    // Video gallery lightbox.
+    const videoDialog = document.getElementById('video-lightbox');
+    if (videoDialog) {
+      const frame = document.getElementById('video-frame');
+
+      if (frame) {
+        const openVideo = (src) => {
+          frame.src = src;
+          if (typeof videoDialog.showModal === 'function') videoDialog.showModal();
+          else videoDialog.setAttribute('open', 'open');
+        };
+        const closeVideo = () => {
+          videoDialog.close?.();
+          frame.src = '';
+        };
+
+        document.querySelectorAll('[data-video-embed]').forEach((card) => {
+          card.addEventListener('click', () => {
+            const embed = card.dataset.videoEmbed;
+            if (embed) { openVideo(embed); return; }
+            if (card.dataset.videoUrl) window.open(card.dataset.videoUrl, '_blank', 'noopener');
+          }, { signal });
+        });
+
+        document.getElementById('video-close')?.addEventListener('click', closeVideo, { signal });
+        videoDialog.addEventListener('close', () => { frame.src = ''; }, { signal });
+        videoDialog.addEventListener('click', (event) => { if (event.target === videoDialog) closeVideo(); }, { signal });
+      }
+    }
+  };
+
+  document.addEventListener('turbo:load', boot);
+  document.addEventListener('DOMContentLoaded', boot);
+
+  // Turbo may restore a cached page before DOMContentLoaded fires.
+  if (document.readyState !== 'loading') boot();
+})();

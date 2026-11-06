@@ -95,15 +95,24 @@ class DashboardService
 
     public function pendingFees(AcademicSession $session): float
     {
+        $horizon = \App\Support\FeeWindow::horizonDate();
+
         $net = (float) StudentFeeAssignment::query()
             ->where('academic_session_id', $session->id)
             ->whereIn('status', ['pending', 'partial'])
+            // Current billing window only; far-future invoices are not due yet.
+            ->where(fn ($query) => $query
+                ->whereNull('due_date')
+                ->orWhere('due_date', '<=', $horizon))
             ->sum('net_amount');
 
         $paid = (float) PaymentAllocation::query()
             ->whereHas('assignment', fn ($query) => $query
                 ->where('academic_session_id', $session->id)
-                ->whereIn('status', ['pending', 'partial']))
+                ->whereIn('status', ['pending', 'partial'])
+                ->where(fn ($inner) => $inner
+                    ->whereNull('due_date')
+                    ->orWhere('due_date', '<=', $horizon)))
             ->whereHas('payment', fn ($query) => $query->where('status', 'completed'))
             ->sum('amount');
 
@@ -169,6 +178,9 @@ class DashboardService
         $assignments = StudentFeeAssignment::query()
             ->where('academic_session_id', $session->id)
             ->whereIn('status', ['pending', 'partial'])
+            ->where(fn ($query) => $query
+                ->whereNull('due_date')
+                ->orWhere('due_date', '<=', \App\Support\FeeWindow::horizonDate()))
             ->withSum(['paymentAllocations as paid_total' => fn ($query) => $query
                 ->whereHas('payment', fn ($payment) => $payment->where('status', 'completed'))], 'amount')
             ->get(['student_id', 'net_amount']);

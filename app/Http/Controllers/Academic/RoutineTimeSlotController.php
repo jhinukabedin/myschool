@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Academic;
 
 use App\Http\Controllers\Controller;
 use App\Models\RoutineTimeSlot;
+use App\Models\SchoolClass;
 use App\Services\AuditLogService;
 use App\Services\RoutineScheduleService;
 use Illuminate\Http\RedirectResponse;
@@ -20,12 +21,16 @@ class RoutineTimeSlotController extends Controller
         private readonly AuditLogService $audit
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $slots = $this->schedule->allSlots()->loadCount('entries');
+        $class = $request->filled('class_id') ? SchoolClass::findOrFail($request->integer('class_id')) : null;
+        $slots = $this->schedule->allSlots($class?->id)->loadCount('entries');
 
         return view('academics.routines.settings', [
             'slots' => $slots,
+            'classes' => SchoolClass::ordered()->get(),
+            'selectedClass' => $class,
+            'hasCustomSlots' => $class ? $this->schedule->hasCustomSlots($class->id) : false,
             'days' => $this->schedule->workingDays(),
             'allDays' => RoutineScheduleService::DAYS,
             'types' => RoutineTimeSlot::TYPES,
@@ -60,6 +65,13 @@ class RoutineTimeSlotController extends Controller
     {
         $data = $this->validated($request);
 
+        if ($data['class_id'] && ! $this->schedule->hasCustomSlots($data['class_id'])
+            && RoutineTimeSlot::query()->whereNull('class_id')->exists()) {
+            throw ValidationException::withMessages([
+                'class_id' => 'Copy the shared periods to this class before adding its first custom period.',
+            ]);
+        }
+
         if (strtotime($data['end_time']) <= strtotime($data['start_time'])) {
             throw ValidationException::withMessages([
                 'end_time' => 'The end time must be later than the start time.',
@@ -69,7 +81,7 @@ class RoutineTimeSlotController extends Controller
         $this->schedule->assertSlotDoesNotOverlap($data);
 
         if (! isset($data['sort_order']) || $data['sort_order'] === null) {
-            $data['sort_order'] = ((int) RoutineTimeSlot::query()->max('sort_order')) + 1;
+            $data['sort_order'] = ((int) RoutineTimeSlot::query()->where('class_id', $data['class_id'])->max('sort_order')) + 1;
         }
 
         $slot = RoutineTimeSlot::create($data);
@@ -80,15 +92,16 @@ class RoutineTimeSlotController extends Controller
             "Created timetable period {$slot->name} ({$slot->time_range})",
             $slot,
             null,
-            $slot->only(['name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active'])
+            $slot->only(['class_id', 'name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active'])
         );
 
-        return redirect()->route('routines.settings')->with('success', 'Time slot added.');
+        return redirect()->route('routines.settings', array_filter(['class_id' => $slot->class_id]))->with('success', 'Time slot added.');
     }
 
     public function update(Request $request, RoutineTimeSlot $timeSlot): RedirectResponse
     {
         $data = $this->validated($request);
+        $data['class_id'] = $timeSlot->class_id;
 
         if (strtotime($data['end_time']) <= strtotime($data['start_time'])) {
             throw ValidationException::withMessages([
@@ -104,7 +117,7 @@ class RoutineTimeSlotController extends Controller
             ]);
         }
 
-        $before = $timeSlot->only(['name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active']);
+        $before = $timeSlot->only(['class_id', 'name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active']);
         $data['sort_order'] = $data['sort_order'] ?? $timeSlot->sort_order;
         $timeSlot->update($data);
 
@@ -114,10 +127,10 @@ class RoutineTimeSlotController extends Controller
             "Updated timetable period {$timeSlot->name}",
             $timeSlot,
             $before,
-            $timeSlot->only(['name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active'])
+            $timeSlot->only(['class_id', 'name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active'])
         );
 
-        return redirect()->route('routines.settings')->with('success', 'Time slot updated.');
+        return redirect()->route('routines.settings', array_filter(['class_id' => $timeSlot->class_id]))->with('success', 'Time slot updated.');
     }
 
     public function move(Request $request, RoutineTimeSlot $timeSlot): RedirectResponse
@@ -125,6 +138,7 @@ class RoutineTimeSlotController extends Controller
         $direction = $request->input('direction') === 'up' ? 'up' : 'down';
 
         $ordered = RoutineTimeSlot::query()
+            ->where('class_id', $timeSlot->class_id)
             ->ordered()
             ->get()
             ->values();
@@ -161,7 +175,7 @@ class RoutineTimeSlotController extends Controller
             ['direction' => $direction]
         );
 
-        return redirect()->route('routines.settings')->with('success', 'Time slot order updated.');
+        return redirect()->route('routines.settings', array_filter(['class_id' => $timeSlot->class_id]))->with('success', 'Time slot order updated.');
     }
 
     public function destroy(RoutineTimeSlot $timeSlot): RedirectResponse
@@ -172,7 +186,7 @@ class RoutineTimeSlotController extends Controller
             ]);
         }
 
-        $before = $timeSlot->only(['name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active']);
+        $before = $timeSlot->only(['class_id', 'name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active']);
         $timeSlot->delete();
 
         $this->audit->record(
@@ -184,7 +198,59 @@ class RoutineTimeSlotController extends Controller
             null
         );
 
-        return redirect()->route('routines.settings')->with('success', 'Time slot deleted.');
+        return redirect()->route('routines.settings', array_filter(['class_id' => $timeSlot->class_id]))->with('success', 'Time slot deleted.');
+    }
+
+    public function customizeClass(SchoolClass $schoolClass): RedirectResponse
+    {
+        if ($this->schedule->hasCustomSlots($schoolClass->id)) {
+            return redirect()->route('routines.settings', ['class_id' => $schoolClass->id])
+                ->with('warning', 'This class already has its own time slots.');
+        }
+
+        $defaults = RoutineTimeSlot::query()->whereNull('class_id')->ordered()->get();
+
+        DB::transaction(function () use ($defaults, $schoolClass) {
+            $slotMap = [];
+
+            foreach ($defaults as $slot) {
+                $copy = RoutineTimeSlot::create([
+                    'class_id' => $schoolClass->id,
+                    'name' => $slot->name,
+                    'start_time' => $slot->start_time,
+                    'end_time' => $slot->end_time,
+                    'type' => $slot->type,
+                    'sort_order' => $slot->sort_order,
+                    'is_active' => $slot->is_active,
+                ]);
+                $slotMap[$slot->id] = $copy->id;
+            }
+
+            if ($slotMap !== []) {
+                DB::table('routine_entries')
+                    ->join('class_routines', 'class_routines.id', '=', 'routine_entries.class_routine_id')
+                    ->where('class_routines.class_id', $schoolClass->id)
+                    ->whereIn('routine_entries.routine_time_slot_id', array_keys($slotMap))
+                    ->select(['routine_entries.id', 'routine_entries.routine_time_slot_id'])
+                    ->get()
+                    ->each(function ($entry) use ($slotMap) {
+                        DB::table('routine_entries')->where('id', $entry->id)
+                            ->update(['routine_time_slot_id' => $slotMap[$entry->routine_time_slot_id]]);
+                    });
+            }
+        });
+
+        $this->audit->record(
+            'routine_class_slots_customized',
+            'Academics',
+            "Created class-specific time slots for {$schoolClass->name}",
+            $schoolClass,
+            null,
+            ['copied_periods' => $defaults->count()]
+        );
+
+        return redirect()->route('routines.settings', ['class_id' => $schoolClass->id])
+            ->with('success', 'Shared periods copied. You can now change times for '.$schoolClass->name.' only.');
     }
 
     /**
@@ -194,6 +260,7 @@ class RoutineTimeSlotController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:60'],
+            'class_id' => ['nullable', 'integer', 'exists:classes,id'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i'],
             'type' => ['required', Rule::in(array_keys(RoutineTimeSlot::TYPES))],
@@ -202,6 +269,7 @@ class RoutineTimeSlotController extends Controller
         ]);
 
         $data['type'] = (string) $data['type'];
+        $data['class_id'] = filled($data['class_id'] ?? null) ? (int) $data['class_id'] : null;
         $data['is_active'] = $request->boolean('is_active', true);
         $data['sort_order'] = filled($data['sort_order'] ?? null) ? (int) $data['sort_order'] : null;
 

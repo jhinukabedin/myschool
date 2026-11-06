@@ -14,7 +14,7 @@ class ClassRoutine extends Model
 
     protected $fillable = [
         'academic_session_id', 'class_id', 'section_id', 'effective_from',
-        'effective_to', 'notes', 'created_by', 'updated_by',
+        'effective_to', 'is_published', 'notes', 'created_by', 'updated_by',
     ];
 
     protected function casts(): array
@@ -22,6 +22,7 @@ class ClassRoutine extends Model
         return [
             'effective_from' => 'date',
             'effective_to' => 'date',
+            'is_published' => 'boolean',
         ];
     }
 

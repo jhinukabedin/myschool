@@ -86,6 +86,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Interface Languages
+    |--------------------------------------------------------------------------
+    |
+    | Languages offered in the language switcher. Keys must match the
+    | translation files in /lang. Unknown values fall back to app.locale.
+    |
+    */
+
+    'available_locales' => [
+        'en' => 'English',
+        'bn' => 'বাংলা',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Key
     |--------------------------------------------------------------------------
     |

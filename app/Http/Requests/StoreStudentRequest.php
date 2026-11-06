@@ -14,8 +14,11 @@ class StoreStudentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'first_name' => ['required', 'string', 'max:80'],
-            'last_name' => ['required', 'string', 'max:80'],
+            'first_name' => ['required', 'string', 'max:120'],
+            'last_name' => ['nullable', 'string', 'max:80'],
+            'name_bn' => ['nullable', 'string', 'max:120'],
+            'has_sibling' => ['nullable', 'boolean'],
+            'sibling_student_id' => ['nullable', 'integer', 'exists:students,id'],
             'gender' => ['required', 'in:male,female,other'],
             'date_of_birth' => ['required', 'date', 'before:today'],
             'blood_group' => ['nullable', 'string', 'max:10'],

@@ -12,6 +12,7 @@ use App\Models\TeacherAssignment;
 use App\Services\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -43,7 +44,7 @@ class TeacherAssignmentController extends Controller
             'session' => $session,
             'sessions' => AcademicSession::orderByDesc('start_date')->get(),
             'classes' => SchoolClass::ordered()->get(),
-            'sections' => Section::orderBy('name')->get(),
+            'sections' => Section::ordered()->get(),
             'subjects' => Subject::orderBy('name')->get(),
             'teachers' => Staff::where('status', 'active')->orderBy('first_name')->get(),
         ]);
@@ -60,21 +61,39 @@ class TeacherAssignmentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $this->validated($request);
-        $this->assertNoConflict($data);
+        // Keep existing integrations and clients that submit a single subject working.
+        if (! $request->filled('subject_ids') && $request->filled('subject_id')) {
+            $request->merge(['subject_ids' => [$request->input('subject_id')]]);
+        }
 
-        $assignment = TeacherAssignment::create($data);
+        $data = $this->validated($request, multipleSubjects: true);
+        $subjectIds = $data['subject_ids'];
+        unset($data['subject_ids']);
 
-        $this->audit->record(
-            'teacher_assignment_created',
-            'Academics',
-            "Assigned {$assignment->staff?->full_name} to {$assignment->class?->name} / {$assignment->subject?->name}",
-            $assignment,
-            null,
-            $assignment->only(['academic_session_id', 'class_id', 'section_id', 'subject_id', 'staff_id', 'is_active'])
-        );
+        $assignments = DB::transaction(function () use ($data, $subjectIds) {
+            $created = collect();
 
-        return redirect()->route('assignments.index')->with('success', 'Teacher assignment created.');
+            foreach ($subjectIds as $subjectId) {
+                $subjectData = [...$data, 'subject_id' => $subjectId];
+                $this->assertNoConflict($subjectData);
+                $created->push(TeacherAssignment::create($subjectData));
+            }
+
+            return $created;
+        });
+
+        foreach ($assignments as $assignment) {
+            $this->audit->record(
+                'teacher_assignment_created',
+                'Academics',
+                "Assigned {$assignment->staff?->full_name} to {$assignment->class?->name} / {$assignment->subject?->name}",
+                $assignment,
+                null,
+                $assignment->only(['academic_session_id', 'class_id', 'section_id', 'subject_id', 'staff_id', 'is_active'])
+            );
+        }
+
+        return redirect()->route('assignments.index')->with('success', $assignments->count().' teacher assignment(s) created.');
     }
 
     public function edit(TeacherAssignment $assignment): View
@@ -124,19 +143,27 @@ class TeacherAssignmentController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function validated(Request $request): array
+    private function validated(Request $request, bool $multipleSubjects = false): array
     {
-        $data = $request->validate([
+        $rules = [
             'academic_session_id' => ['required', 'exists:academic_sessions,id'],
             'class_id' => ['required', 'exists:classes,id'],
             'section_id' => ['nullable', 'exists:sections,id'],
-            'subject_id' => ['required', 'exists:subjects,id'],
             'staff_id' => ['required', 'exists:staff,id'],
             'starts_on' => ['nullable', 'date'],
             'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
             'is_active' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:255'],
-        ]);
+        ];
+
+        if ($multipleSubjects) {
+            $rules['subject_ids'] = ['required', 'array', 'min:1'];
+            $rules['subject_ids.*'] = ['required', 'integer', 'distinct', 'exists:subjects,id'];
+        } else {
+            $rules['subject_id'] = ['required', 'exists:subjects,id'];
+        }
+
+        $data = $request->validate($rules);
 
         $data['is_active'] = $request->boolean('is_active', true);
         $data['section_id'] = $data['section_id'] ?? null;
@@ -193,7 +220,7 @@ class TeacherAssignmentController extends Controller
             'assignment' => $assignment,
             'sessions' => AcademicSession::orderByDesc('start_date')->get(),
             'classes' => SchoolClass::ordered()->get(),
-            'sections' => Section::orderBy('name')->get(),
+            'sections' => Section::ordered()->get(),
             'subjects' => Subject::orderBy('name')->get(),
             'teachers' => Staff::where('status', 'active')->orderBy('first_name')->get(),
         ];

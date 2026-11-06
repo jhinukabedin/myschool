@@ -36,7 +36,7 @@
         </div>
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Structure</th><th>Class</th><th>Session</th><th>Items</th><th class="num">Gross</th><th>Effective</th><th>Status</th><th>Assigned</th><th class="actions">Actions</th></tr></thead>
+                <thead><tr><th>Structure</th><th>Class</th><th>Session</th><th>Items</th><th class="num">Gross</th><th class="num">Scholarship</th><th class="num">Net</th><th>Effective</th><th>Status</th><th>Assigned</th><th class="actions">Actions</th></tr></thead>
                 <tbody>
                     @forelse ($structures as $structure)
                         <tr>
@@ -45,6 +45,8 @@
                             <td>{{ $structure->academicSession?->name }}</td>
                             <td>{{ $structure->items->count() }}</td>
                             <td class="num">{{ money($structure->total) }}</td>
+                            <td class="num {{ (float) $structure->scholarship_total > 0 ? 'text-success' : 'muted' }}">{{ (float) $structure->scholarship_total > 0 ? '-'.money($structure->scholarship_total) : '—' }}</td>
+                            <td class="num">{{ money($structure->net_total) }}</td>
                             <td class="muted">{{ $structure->effective_from?->format('d M Y') }} – {{ $structure->effective_to?->format('d M Y') ?? 'Open' }}</td>
                             <td><x-badge :color="$structure->status === 'active' ? 'success' : 'muted'">{{ ucfirst($structure->status) }}</x-badge></td>
                             <td>{{ $structure->assignments_count }} row(s)</td>

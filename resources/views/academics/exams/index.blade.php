@@ -8,6 +8,7 @@
             <x-button :href="route('grading-schemes.index')" variant="secondary" icon="sliders">Grading schemes</x-button>
             <x-button :href="route('exams.schedule')" variant="secondary" icon="calendar">Exam schedule</x-button>
             @can('exams.manage')
+                <x-button :href="route('exams.distributions')" variant="secondary" icon="list-checks">Marks distribution</x-button>
                 <x-button :href="route('exams.create')" variant="primary" icon="plus">New examination</x-button>
             @endcan
         </x-slot:actions>

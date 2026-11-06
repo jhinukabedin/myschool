@@ -20,7 +20,8 @@ class SchoolClass extends Model
 
     public function sections(): BelongsToMany
     {
-        return $this->belongsToMany(Section::class, 'class_section', 'class_id', 'section_id');
+        return $this->belongsToMany(Section::class, 'class_section', 'class_id', 'section_id')
+            ->orderBy('sections.numeric_level')->orderBy('sections.name');
     }
 
     public function enrollments(): HasMany

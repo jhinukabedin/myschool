@@ -3,7 +3,7 @@
 @section('title', $student->full_name)
 
 @section('content')
-    <x-page-header eyebrow="Student Profile" :title="$student->full_name" :subtitle="'Student ID '.($student->student_code ?? '—').' · Admission '.$student->admission_no.' · '.($enrollment ? $enrollment->class?->name.' · Section '.$enrollment->section?->name.' · Roll '.$enrollment->roll_no : 'No active enrolment')">
+    <x-page-header eyebrow="Student Profile" :title="$student->full_name" :subtitle="'Student ID '.($student->student_code ?? '—').' · '.($enrollment ? $enrollment->class?->name.' · Section '.$enrollment->section?->name.' · Roll '.$enrollment->roll_no : 'No active enrolment')">
         <x-slot:actions>
             @can('fees.collect')
                 <x-button :href="route('fees.collection.show', $student)" variant="secondary" icon="wallet">Collect fees</x-button>
@@ -27,8 +27,7 @@
                         <div style="flex:1;min-width:200px">
                             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
                                 <x-badge :color="$student->status_color">{{ $student->status_label }}</x-badge>
-                                <x-badge color="info">ID {{ $student->student_code ?? '—' }}</x-badge>
-                                <x-badge color="violet">{{ $student->admission_no }}</x-badge>
+                                <x-badge color="info">Student ID {{ $student->student_code ?? '—' }}</x-badge>
                                 @if ($student->blood_group)<x-badge color="danger">{{ $student->blood_group }}</x-badge>@endif
                             </div>
                             <div class="page-subtitle">{{ $student->address ?? 'No address recorded' }}{{ $student->city ? ', '.$student->city : '' }}</div>
@@ -102,6 +101,19 @@
 
         <div class="stack">
             <div class="card">
+                <div class="card-header"><div><h3 class="card-title">Student Information</h3></div></div>
+                <div class="card-body">
+                    <div class="detail-list">
+                        <div class="detail-row"><span class="detail-label">Student ID</span><span class="detail-value mono" style="font-weight:700;font-size:15px">{{ $student->student_code ?? '—' }}</span></div>
+                        <div class="detail-row"><span class="detail-label">Academic year</span><span class="detail-value">{{ $session?->name ?? '—' }}</span></div>
+                        <div class="detail-row"><span class="detail-label">Class</span><span class="detail-value">{{ $enrollment?->class?->name ?? '—' }}</span></div>
+                        <div class="detail-row"><span class="detail-label">Section</span><span class="detail-value">{{ $enrollment?->section?->name ?? '—' }}</span></div>
+                        <div class="detail-row"><span class="detail-label">Current roll</span><span class="detail-value">{{ $enrollment?->roll_no ?? '—' }}</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-header"><div><h3 class="card-title">Contact</h3></div></div>
                 <div class="card-body">
                     <div class="detail-list">
@@ -112,6 +124,25 @@
                         <div class="detail-row"><span class="detail-label">Relation</span><span class="detail-value">{{ $student->primaryGuardian()?->relation ?? '—' }}</span></div>
                         <div class="detail-row"><span class="detail-label">Previous school</span><span class="detail-value">{{ $student->previous_school ?? '—' }}</span></div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><div><h3 class="card-title">Siblings</h3><p class="card-sub">Brothers and sisters linked at admission</p></div></div>
+                <div class="card-body">
+                    @php($siblings = $student->siblings->concat(array_filter([$student->siblingStudent]))->unique('id'))
+                    @if ($siblings->isEmpty())
+                        <p class="muted" style="margin:0">{{ $student->has_sibling ? 'Marked as having a sibling, but no student is linked yet.' : 'No sibling linked to this student.' }}</p>
+                    @else
+                        <div class="detail-list">
+                            @foreach ($siblings as $sibling)
+                                <div class="detail-row">
+                                    <span class="detail-label"><a href="{{ route('students.show', $sibling) }}">{{ $sibling->full_name }}</a></span>
+                                    <span class="detail-value mono">{{ $sibling->student_code }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             </div>
 

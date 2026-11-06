@@ -109,17 +109,65 @@ class RoutineScheduleService
     /**
      * @return Collection<int, RoutineTimeSlot>
      */
-    public function activeSlots(): Collection
+    public function activeSlots(?int $classId = null): Collection
     {
-        return RoutineTimeSlot::query()->active()->ordered()->get();
+        return $this->slotQueryForClass($classId)->active()->ordered()->get();
     }
 
     /**
      * @return Collection<int, RoutineTimeSlot>
      */
-    public function allSlots(): Collection
+    public function allSlots(?int $classId = null): Collection
     {
-        return RoutineTimeSlot::query()->ordered()->get();
+        return $this->slotQueryForClass($classId)->ordered()->get();
+    }
+
+    public function hasCustomSlots(int $classId): bool
+    {
+        return RoutineTimeSlot::query()->where('class_id', $classId)->exists();
+    }
+
+    public function hasAnyActiveSlots(): bool
+    {
+        return RoutineTimeSlot::query()->active()->exists();
+    }
+
+    /**
+     * Merge the periods needed by a teacher's classes without duplicating
+     * shared defaults. Class-specific periods remain separate columns.
+     *
+     * @param  array<int, int>  $classIds
+     * @return Collection<int, RoutineTimeSlot>
+     */
+    public function activeSlotsForClasses(array $classIds): Collection
+    {
+        return collect($classIds)
+            ->unique()
+            ->flatMap(fn ($classId) => $this->activeSlots((int) $classId))
+            ->unique('id')
+            ->sortBy(fn (RoutineTimeSlot $slot) => [$slot->start_time, $slot->class_id ?? 0, $slot->sort_order])
+            ->values();
+    }
+
+    public function resolveSlotForClass(int $classId, RoutineTimeSlot $source): ?RoutineTimeSlot
+    {
+        return $this->activeSlots($classId)->first(fn (RoutineTimeSlot $slot) =>
+            $slot->name === $source->name
+            && $slot->start_time === $source->start_time
+            && $slot->end_time === $source->end_time
+            && $slot->type === $source->type
+        );
+    }
+
+    private function slotQueryForClass(?int $classId)
+    {
+        $query = RoutineTimeSlot::query();
+
+        if ($classId !== null && $this->hasCustomSlots($classId)) {
+            return $query->where('class_id', $classId);
+        }
+
+        return $query->whereNull('class_id');
     }
 
     /**
@@ -170,6 +218,19 @@ class RoutineScheduleService
         if (! $slot->isTeaching()) {
             throw ValidationException::withMessages([
                 'routine_time_slot_id' => 'Lunch, breaks and assemblies are non-teaching periods. They cannot contain a subject.',
+            ]);
+        }
+
+        $classHasCustomSlots = $this->hasCustomSlots((int) $routine->class_id);
+        if ($classHasCustomSlots && (int) $slot->class_id !== (int) $routine->class_id) {
+            throw ValidationException::withMessages([
+                'routine_time_slot_id' => 'This period does not belong to the selected class schedule. Refresh the timetable and try again.',
+            ]);
+        }
+
+        if (! $classHasCustomSlots && $slot->class_id !== null) {
+            throw ValidationException::withMessages([
+                'routine_time_slot_id' => 'This class is not configured to use that period. Refresh the timetable and try again.',
             ]);
         }
 
@@ -231,6 +292,7 @@ class RoutineScheduleService
     public function assertSlotDoesNotOverlap(array $data, ?int $ignoreId = null): void
     {
         $overlap = RoutineTimeSlot::query()
+            ->where('class_id', $data['class_id'] ?? null)
             ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
             ->where('start_time', '<', $data['end_time'])
             ->where('end_time', '>', $data['start_time'])

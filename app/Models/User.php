@@ -4,16 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Cache;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable, SoftDeletes;
+
+    private ?array $permissionSlugCache = null;
 
     protected $fillable = [
         'role_id', 'name', 'email', 'username', 'phone', 'phone_normalized',
@@ -106,17 +108,50 @@ class User extends Authenticatable
             return true;
         }
 
-        if (! $this->role_id) {
-            return false;
+        return in_array($permission, $this->permissionSlugs(), true);
+    }
+
+    /**
+     * Permissions given to this user one by one by an administrator.
+     */
+    public function explicitPermissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'user_permissions')
+            ->withPivot('granted_by')
+            ->withTimestamps();
+    }
+
+    public function usesRolePermissions(): bool
+    {
+        return in_array($this->role?->slug, config('school.self_managed_roles', []), true);
+    }
+
+    /**
+     * The permission slugs in effect for this request.
+     *
+     * @return array<int, string>
+     */
+    public function permissionSlugs(): array
+    {
+        if ($this->permissionSlugCache !== null) {
+            return $this->permissionSlugCache;
         }
 
-        $permissions = Cache::remember(
-            "role_permissions_{$this->role_id}",
-            now()->addMinutes(30),
-            fn () => $this->role?->permissions()->pluck('slug')->all() ?? []
-        );
+        if (! $this->role_id) {
+            return $this->permissionSlugCache = [];
+        }
 
-        return in_array($permission, $permissions, true);
+        $relation = $this->usesRolePermissions() ? $this->role?->permissions() : $this->explicitPermissions();
+
+        return $this->permissionSlugCache = $relation?->pluck('slug')->all() ?? [];
+    }
+
+    /**
+     * Forget the per-request permission cache after permissions change.
+     */
+    public function forgetPermissionCache(): void
+    {
+        $this->permissionSlugCache = null;
     }
 
     public function getInitialsAttribute(): string

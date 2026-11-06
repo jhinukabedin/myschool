@@ -13,7 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class AttendanceService
 {
-    public function __construct(private readonly AuditLogService $audit) {}
+    public function __construct(
+        private readonly AuditLogService $audit,
+        private readonly AttendanceAuthorizationService $authorization,
+    ) {}
 
     /**
      * Mark or update attendance for a class. The unique database index and
@@ -30,6 +33,14 @@ class AttendanceService
         User $actor,
         array $notes = []
     ): int {
+        if (! $class->sections()->whereKey($section->id)->exists()) {
+            throw ValidationException::withMessages(['section_id' => 'This section does not belong to the selected class.']);
+        }
+
+        if (! $this->authorization->canAccess($actor, $session, $class, (int) $section->id, $date)) {
+            abort(403, 'You are not assigned to take attendance for this class and section.');
+        }
+
         $allowed = ['present', 'absent', 'late', 'excused'];
 
         foreach ($statuses as $status) {

@@ -43,7 +43,7 @@
             <div>
                 <h2>{{ $child->full_name }}</h2>
                 <div class="chips">
-                    <span class="chip">{{ $child->admission_no }}</span>
+                    <span class="chip">Student ID: {{ $child->student_code }}</span>
                     @if ($enrollment)
                         <span class="chip">{{ $enrollment->class?->name }}</span>
                         <span class="chip">Section {{ $enrollment->section?->name ?? '—' }}</span>

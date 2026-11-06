@@ -201,7 +201,7 @@ class DemoDataSeeder extends Seeder
 
                     $roll[$section->id] = ($roll[$section->id] ?? 0) + 1;
 
-                    Enrollment::create([
+                    $enrollment = Enrollment::create([
                         'student_id' => $student->id,
                         'academic_session_id' => $this->session->id,
                         'class_id' => $class->id,
@@ -209,6 +209,9 @@ class DemoDataSeeder extends Seeder
                         'roll_no' => $roll[$section->id],
                         'status' => 'active',
                     ]);
+
+                    // Permanent Student ID uses the admission year + class numeric level.
+                    app(\App\Services\StudentCodeService::class)->ensure($student, $enrollment);
 
                     $students[] = $student;
                     $counter++;
@@ -703,7 +706,7 @@ class DemoDataSeeder extends Seeder
                 'is_primary' => true,
             ]);
 
-            Enrollment::create([
+            $enrollment = Enrollment::create([
                 'student_id' => $student->id,
                 'academic_session_id' => $session2025?->id ?? $this->session->id,
                 'class_id' => $i < 5 ? $classTen->id : $classNine->id,
@@ -712,6 +715,8 @@ class DemoDataSeeder extends Seeder
                 'status' => $status === 'passed_out' ? 'completed' : 'transferred',
                 'remarks' => $status === 'passed_out' ? 'Completed Class 10 in 2025.' : 'Transferred to another school.',
             ]);
+
+            app(\App\Services\StudentCodeService::class)->ensure($student, $enrollment);
         }
     }
 }

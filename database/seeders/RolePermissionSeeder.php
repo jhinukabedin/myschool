@@ -18,9 +18,18 @@ class RolePermissionSeeder extends Seeder
         }
 
         foreach (config('school.roles') as $slug => $meta) {
+            $isSystem = $meta['is_system'] ?? true;
+            $existing = Role::where('slug', $slug)->first();
+
+            // Starter roles such as Principal and Data Entry are editable and
+            // belong to the school. Never overwrite a school's own changes.
+            if ($existing && ! $isSystem) {
+                continue;
+            }
+
             $role = Role::updateOrCreate(
                 ['slug' => $slug],
-                ['name' => $meta['name'], 'description' => $meta['description'], 'is_system' => true]
+                ['name' => $meta['name'], 'description' => $meta['description'], 'is_system' => $isSystem]
             );
 
             $permissionIds = $meta['permissions'] === '*'

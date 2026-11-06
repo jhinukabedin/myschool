@@ -74,7 +74,7 @@ class MarksController extends Controller
 
         // Where a teacher is only assigned specific sections, never fall back to
         // "all sections", which would expose other teachers' students.
-        $sections = Section::orderBy('name')->get();
+        $sections = Section::ordered()->get();
         $forcedSection = null;
 
         if ($examSubject && ! $isAdministrative) {
@@ -84,7 +84,7 @@ class MarksController extends Controller
             );
 
             if ($paperAssignments->contains(fn (TeacherAssignment $assignment) => $assignment->section_id === null)) {
-                $sections = Section::orderBy('name')->get();
+                $sections = Section::ordered()->get();
             } else {
                 $allowedIds = $paperAssignments->pluck('section_id')->filter()->unique()->values();
                 $sections = Section::whereIn('id', $allowedIds)->orderBy('name')->get();

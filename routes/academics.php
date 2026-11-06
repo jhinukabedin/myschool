@@ -8,8 +8,11 @@ use App\Http\Controllers\Academic\ClassSubjectController;
 use App\Http\Controllers\Academic\ExamController;
 use App\Http\Controllers\Academic\GradeRuleController;
 use App\Http\Controllers\Academic\GradingSchemeController;
+use App\Http\Controllers\Academic\HolidayController;
 use App\Http\Controllers\Academic\MarksController;
+use App\Http\Controllers\Academic\MarksDistributionController;
 use App\Http\Controllers\Academic\RoutineTimeSlotController;
+use App\Http\Controllers\Academic\ShiftController;
 use App\Http\Controllers\Academic\SubjectController;
 use App\Http\Controllers\Academic\TeacherAssignmentController;
 use App\Http\Controllers\Academic\TeacherController;
@@ -26,12 +29,28 @@ Route::get('/attendance', [AttendanceController::class, 'index'])
     ->middleware('permission:attendance.view')->name('attendance.index');
 Route::post('/attendance', [AttendanceController::class, 'store'])
     ->middleware('permission:attendance.manage')->name('attendance.store');
+
+Route::get('/holidays', [HolidayController::class, 'index'])
+    ->middleware('permission:academics.view')->name('holidays.index');
+Route::post('/holidays', [HolidayController::class, 'store'])
+    ->middleware('permission:academics.manage')->name('holidays.store');
+Route::put('/holidays/{holiday}', [HolidayController::class, 'update'])
+    ->middleware('permission:academics.manage')->name('holidays.update');
+Route::delete('/holidays/{holiday}', [HolidayController::class, 'destroy'])
+    ->middleware('permission:academics.manage')->name('holidays.destroy');
+Route::post('/holidays/weekly-off', [HolidayController::class, 'weekdays'])
+    ->middleware('permission:academics.manage')->name('holidays.weekdays');
 Route::get('/attendance/report', [AttendanceReportController::class, 'index'])
     ->middleware('permission:attendance.report')->name('attendance.report');
+Route::get('/attendance/report/print', [AttendanceReportController::class, 'print'])
+    ->middleware('permission:attendance.report')->name('attendance.report.print');
 Route::get('/attendance/report/export', [AttendanceReportController::class, 'export'])
     ->middleware('permission:attendance.report')->name('attendance.report.export');
 
 Route::prefix('exams')->name('exams.')->group(function () {
+    Route::get('/marks-distribution', [MarksDistributionController::class, 'index'])->middleware('permission:exams.manage')->name('distributions');
+    Route::post('/marks-distribution', [MarksDistributionController::class, 'store'])->middleware('permission:exams.manage')->name('distributions.store');
+    Route::delete('/marks-distribution', [MarksDistributionController::class, 'destroy'])->middleware('permission:exams.manage')->name('distributions.destroy');
     Route::get('/', [ExamController::class, 'index'])->middleware('permission:exams.view')->name('index');
     Route::get('/create', [ExamController::class, 'create'])->middleware('permission:exams.manage')->name('create');
     Route::post('/', [ExamController::class, 'store'])->middleware('permission:exams.manage')->name('store');
@@ -56,12 +75,14 @@ Route::prefix('exams')->name('exams.')->group(function () {
 Route::get('/subjects', [SubjectController::class, 'index'])->middleware('permission:academics.view')->name('subjects.index');
 Route::get('/subjects/create', [SubjectController::class, 'create'])->middleware('permission:academics.manage')->name('subjects.create');
 Route::post('/subjects', [SubjectController::class, 'store'])->middleware('permission:academics.manage')->name('subjects.store');
+Route::delete('/subjects/bulk-delete', [SubjectController::class, 'bulkDestroy'])->middleware('permission:academics.manage')->name('subjects.bulk-destroy');
 Route::get('/subjects/{subject}/edit', [SubjectController::class, 'edit'])->middleware('permission:academics.manage')->name('subjects.edit');
 Route::put('/subjects/{subject}', [SubjectController::class, 'update'])->middleware('permission:academics.manage')->name('subjects.update');
 Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy'])->middleware('permission:academics.manage')->name('subjects.destroy');
 
 Route::get('/class-subjects', [ClassSubjectController::class, 'index'])->middleware('permission:academics.view')->name('class-subjects.index');
 Route::post('/class-subjects', [ClassSubjectController::class, 'store'])->middleware('permission:academics.manage')->name('class-subjects.store');
+Route::delete('/class-subjects/bulk-delete', [ClassSubjectController::class, 'bulkDestroy'])->middleware('permission:academics.manage')->name('class-subjects.bulk-destroy');
 Route::delete('/class-subjects/{classSubject}', [ClassSubjectController::class, 'destroy'])->middleware('permission:academics.manage')->name('class-subjects.destroy');
 
 Route::get('/academics/grade-rules', [GradeRuleController::class, 'index'])->middleware('permission:academics.view')->name('grade-rules.index');
@@ -82,6 +103,8 @@ Route::prefix('class-routines')->name('routines.')->group(function () {
         ->middleware('permission:routines.create')->name('create');
     Route::post('/', [ClassRoutineController::class, 'store'])
         ->middleware('permission:routines.create')->name('store');
+    Route::post('/{routine}/website-visibility', [ClassRoutineController::class, 'toggleWebsiteVisibility'])
+        ->middleware('permission:routines.edit')->name('website-toggle');
 
     Route::get('/settings', [RoutineTimeSlotController::class, 'index'])
         ->middleware('permission:routines.edit')->name('settings');
@@ -89,6 +112,8 @@ Route::prefix('class-routines')->name('routines.')->group(function () {
         ->middleware('permission:routines.edit')->name('settings.days');
     Route::post('/time-slots', [RoutineTimeSlotController::class, 'store'])
         ->middleware('permission:routines.edit')->name('time-slots.store');
+    Route::post('/settings/classes/{schoolClass}/customize', [RoutineTimeSlotController::class, 'customizeClass'])
+        ->middleware('permission:routines.edit')->name('settings.customize');
     Route::put('/time-slots/{timeSlot}', [RoutineTimeSlotController::class, 'update'])
         ->middleware('permission:routines.edit')->name('time-slots.update');
     Route::post('/time-slots/{timeSlot}/move', [RoutineTimeSlotController::class, 'move'])
@@ -131,4 +156,15 @@ Route::prefix('teacher-assignments')->name('assignments.')->group(function () {
         ->middleware('permission:assignments.manage')->name('update');
     Route::post('/{assignment}/toggle', [TeacherAssignmentController::class, 'toggle'])
         ->middleware('permission:assignments.manage')->name('toggle');
+});
+
+Route::prefix('shifts')->name('shifts.')->group(function () {
+    Route::get('/', [ShiftController::class, 'index'])
+        ->middleware('permission:academics.manage')->name('index');
+    Route::post('/', [ShiftController::class, 'store'])
+        ->middleware('permission:academics.manage')->name('store');
+    Route::put('/{shift}', [ShiftController::class, 'update'])
+        ->middleware('permission:academics.manage')->name('update');
+    Route::delete('/{shift}', [ShiftController::class, 'destroy'])
+        ->middleware('permission:academics.manage')->name('destroy');
 });

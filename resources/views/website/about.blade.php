@@ -23,16 +23,7 @@
         </article>
 
         <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
-            <div class="card contact-card">
-                <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">দ্রুত লিংক</h3>
-                <a href="{{ route('website.administration-message') }}" style="display:block;padding:7px 0">প্রশাসনের বাণী</a>
-                <a href="{{ route('website.principal-message') }}" style="display:block;padding:7px 0">প্রধান শিক্ষকের বাণী</a>
-                <a href="{{ route('website.president-message') }}" style="display:block;padding:7px 0">সভাপতির বাণী</a>
-                <a href="{{ route('website.faculty') }}" style="display:block;padding:7px 0">শিক্ষকবৃন্দ</a>
-                <a href="{{ route('website.academics') }}" style="display:block;padding:7px 0">একাডেমিক কার্যক্রম</a>
-                <a href="{{ route('website.admission') }}" style="display:block;padding:7px 0">ভর্তি তথ্য</a>
-                <a href="{{ route('website.contact') }}" style="display:block;padding:7px 0">যোগাযোগ</a>
-            </div>
+            @include('website._sidebar')
             <div class="card contact-card">
                 <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">যোগাযোগ</h3>
                 @if ($siteAddress)<p>{{ $siteAddress }}</p>@endif

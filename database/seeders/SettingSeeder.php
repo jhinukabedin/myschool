@@ -12,6 +12,7 @@ class SettingSeeder extends Seeder
     {
         $settings = [
             ['key' => 'school_name', 'value' => 'EduSphere School', 'group' => 'general'],
+            ['key' => 'school_established_year', 'value' => '', 'group' => 'general'],
             ['key' => 'school_tagline', 'value' => 'Knowledge • Character • Excellence', 'group' => 'general'],
             ['key' => 'school_address', 'value' => '12 Education Avenue, Dhanmondi, Dhaka 1205', 'group' => 'general'],
             ['key' => 'school_phone', 'value' => '+880 1700 000000', 'group' => 'general'],

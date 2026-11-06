@@ -27,6 +27,8 @@ class StoreFeeStructureRequest extends FormRequest
             'items.*.fee_category_id' => ['required', 'distinct', 'exists:fee_categories,id'],
             'items.*.amount' => ['required', 'numeric', 'min:0', 'max:9999999'],
             'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.scholarship_type' => ['nullable', Rule::in(['percent', 'fixed'])],
+            'items.*.scholarship_value' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
             'items.*.frequency' => ['required', Rule::in(['monthly', 'one_time', 'annual', 'exam'])],
             'items.*.due_day' => ['required', 'integer', 'min:1', 'max:28'],
             'items.*.is_optional' => ['nullable', 'boolean'],
@@ -63,6 +65,25 @@ class StoreFeeStructureRequest extends FormRequest
                             "items.{$index}.discount_amount",
                             'The discount cannot exceed the fee amount.'
                         );
+                    }
+
+                    $scholarship = $item['scholarship_value'] ?? null;
+                    $type = $item['scholarship_type'] ?? 'fixed';
+
+                    if (is_numeric($scholarship) && (float) $scholarship > 0) {
+                        if ($type === 'percent' && (float) $scholarship > 100) {
+                            $validator->errors()->add(
+                                "items.{$index}.scholarship_value",
+                                'A scholarship percentage cannot exceed 100.'
+                            );
+                        }
+
+                        if ($type === 'fixed' && is_numeric($amount) && (float) $scholarship > (float) $amount) {
+                            $validator->errors()->add(
+                                "items.{$index}.scholarship_value",
+                                'A fixed scholarship cannot exceed the fee amount.'
+                            );
+                        }
                     }
                 }
             },

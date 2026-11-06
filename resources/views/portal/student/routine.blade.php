@@ -1,39 +1,39 @@
 @extends('layouts.portal')
 
-@section('title', 'Class Routine')
-@section('banner-subtitle', 'Your official weekly timetable. Days run down the rows and periods run across the columns.')
+@section('title', __('Class Routine'))
+@section('banner-subtitle', __('Your official weekly timetable. Days run down the rows and periods run across the columns.'))
 
 @section('content')
     <div class="portal-panel">
-        <h2>Weekly class routine</h2>
+        <h2>{{ __('Weekly class routine') }}</h2>
         <div class="portal-panel-body">
             <div class="chips" style="margin-bottom:14px">
                 @if ($enrollment)
                     <span class="chip">{{ $enrollment->class?->name }}</span>
-                    <span class="chip">Section {{ $enrollment->section?->name ?? '-' }}</span>
+                    <span class="chip">{{ __('Section') }} {{ $enrollment->section?->name ?? '-' }}</span>
                 @endif
-                <span class="chip">{{ $session?->name ?? 'Current session' }}</span>
+                <span class="chip">{{ $session?->name ?? __('Current session') }}</span>
                 @if ($routine)
-                    <span class="chip">Effective {{ $routine->effectiveDate()->format('d M Y') }}</span>
+                    <span class="chip">{{ __('Effective') }} {{ $routine->effectiveDate()->format('d M Y') }}</span>
                 @endif
             </div>
 
             @if (! $routine)
                 <div class="portal-empty">
-                    <strong>No published class routine yet.</strong>
-                    <p>The academic office has not published a structured timetable for your class and section. Please check back later.</p>
+                    <strong>{{ __('No published class routine yet.') }}</strong>
+                    <p>{{ __('The academic office has not published a structured timetable for your class and section. Please check back later.') }}</p>
                 </div>
             @elseif ($slots->isEmpty())
                 <div class="portal-empty">
-                    <strong>Timetable periods are not configured.</strong>
-                    <p>Ask the academic office to configure the daily periods before the routine can be displayed.</p>
+                    <strong>{{ __('Timetable periods are not configured.') }}</strong>
+                    <p>{{ __('Ask the academic office to configure the daily periods before the routine can be displayed.') }}</p>
                 </div>
             @else
-                <div class="routine-table-wrap" role="region" aria-label="Class routine timetable" tabindex="0">
+                <div class="routine-table-wrap" role="region" aria-label="{{ __('Class routine timetable') }}" tabindex="0">
                     <table class="routine-table portal-routine-table">
                         <thead>
                             <tr>
-                                <th class="routine-day-col" scope="col">Day</th>
+                                <th class="routine-day-col" scope="col">{{ __('Day') }}</th>
                                 @foreach ($slots as $slot)
                                     <th scope="col" @class(['routine-slot-break' => ! $slot->isTeaching()])>
                                         <span class="routine-slot-name">{{ $slot->name }}</span>
@@ -45,7 +45,7 @@
                         <tbody>
                             @foreach ($days as $dayKey => $dayLabel)
                                 <tr>
-                                    <th class="routine-day-col" scope="row">{{ $dayLabel }}</th>
+                                    <th class="routine-day-col" scope="row">{{ __($dayLabel) }}</th>
                                     @foreach ($slots as $slot)
                                         @php($entry = $entryMap->get($dayKey.'|'.$slot->id))
 
@@ -75,7 +75,7 @@
                 </div>
 
                 <p class="portal-routine-note">
-                    Lunch and break periods appear in their own column in every day row. Contact the academic office if a period looks incorrect.
+                    {{ __('Lunch and break periods appear in their own column in every day row. Contact the academic office if a period looks incorrect.') }}
                 </p>
             @endif
         </div>

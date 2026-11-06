@@ -76,6 +76,25 @@ class PaymentService
             }
 
             $paidAt = isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now();
+
+            // A fee row may carry a percentage or fixed scholarship that is already netted out of
+            // its net_amount. Record the share of that concession settled by this receipt on each
+            // allocation so the receipt shows the scholarship without deducting it twice.
+            $lines = [];
+
+            foreach ($normalized as $id => $amount) {
+                $assignment = $assignments[$id];
+                $scholarship = round((float) $assignment->scholarship_amount, 2);
+                $net = round((float) $assignment->net_amount, 2);
+                $share = $net > 0 ? round($scholarship * ($amount / $net), 2) : 0.0;
+
+                $lines[$id] = [
+                    'amount' => $amount,
+                    'discount' => min($share, $scholarship),
+                ];
+            }
+
+            $discount_amount = round(array_sum(array_column($lines, 'discount')), 2);
             $receipt = $this->numbers->receiptNumber((int) $paidAt->format('Y'));
 
             $payment = Payment::create([
@@ -83,7 +102,7 @@ class PaymentService
                 'student_id' => $student->id,
                 'academic_session_id' => $session->id,
                 'amount' => $total,
-                'discount_amount' => 0,
+                'discount_amount' => $discount_amount,
                 'payment_method' => $data['payment_method'],
                 'reference_no' => $data['reference_no'] ?? null,
                 'paid_at' => $paidAt,
@@ -92,12 +111,12 @@ class PaymentService
                 'received_by' => $actor->id,
             ]);
 
-            foreach ($normalized as $id => $amount) {
+            foreach ($lines as $id => $line) {
                 PaymentAllocation::create([
                     'payment_id' => $payment->id,
                     'student_fee_assignment_id' => $id,
-                    'amount' => $amount,
-                    'discount_amount' => 0,
+                    'amount' => $line['amount'],
+                    'discount_amount' => $line['discount'],
                 ]);
 
                 $this->assignments->recalcStatus($assignments[$id]);
@@ -121,7 +140,7 @@ class PaymentService
      *
      * @return array<int, float>
      */
-    public function autoAllocate(Student $student, AcademicSession $session, float $amount): array
+    public function autoAllocate(Student $student, AcademicSession $session, float $amount, bool $includeFuture = false): array
     {
         if ($amount <= 0) {
             throw ValidationException::withMessages(['amount' => 'Enter an amount greater than zero.']);
@@ -133,7 +152,12 @@ class PaymentService
             ->where('student_id', $student->id)
             ->where('academic_session_id', $session->id)
             ->whereIn('status', ['pending', 'partial'])
+            // Unless advance payment is requested, leave future-window invoices alone.
+            ->when(! $includeFuture, fn ($query) => $query->where(fn ($inner) => $inner
+                ->whereNull('due_date')
+                ->orWhere('due_date', '<=', \App\Support\FeeWindow::horizonDate())))
             ->orderBy('due_date', $direction)
+            ->orderBy('id', $direction)
             ->withSum(['paymentAllocations as paid_total' => fn ($query) => $query
                 ->whereHas('payment', fn ($payment) => $payment->where('status', 'completed'))], 'amount')
             ->get();

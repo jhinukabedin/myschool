@@ -100,8 +100,9 @@
                                 <th>Student</th>
                                 @if ($components->isNotEmpty())
                                     @foreach ($components as $component)
-                                        <th style="min-width:110px">{{ $component['name'] }}<div class="cell-sub">Full {{ number_format((float) $component['full_marks'], 0) }}</div></th>
+                                        <th style="min-width:110px">{{ $component['name'] }}<div class="cell-sub">Full {{ number_format((float) $component['full_marks'], 0) }}@if($component['requires_pass'] ?? false) · Pass {{ number_format((float)($component['pass_marks'] ?? 0), 0) }}@endif</div></th>
                                     @endforeach
+                                    <th>Total</th>
                                 @else
                                     <th style="width:170px">Marks obtained</th>
                                 @endif
@@ -120,19 +121,20 @@
                                             <span class="table-avatar">{{ Str::substr($enrollment->student?->full_name ?? '?', 0, 1) }}</span>
                                             <div>
                                                 <div class="cell-title">{{ $enrollment->student?->full_name }}</div>
-                                                <div class="cell-sub">{{ $enrollment->student?->admission_no }} · Section {{ $enrollment->section?->name }}</div>
+                                                <div class="cell-sub">Student ID: {{ $enrollment->student?->student_code }} · Section {{ $enrollment->section?->name }}</div>
                                             </div>
                                         </div>
                                     </td>
                                     @if ($components->isNotEmpty())
                                         @foreach ($components as $componentIndex => $component)
                                             <td>
-                                                <input class="input" type="number" step="0.01" min="0" max="{{ (float) $component['full_marks'] }}" name="components[{{ $enrollment->student_id }}][{{ $componentIndex }}]" value="{{ old('components.'.$enrollment->student_id.'.'.$componentIndex, $mark && ! $mark->is_absent ? ($mark->component_marks[$componentIndex] ?? null) : null) }}" placeholder="0 - {{ number_format((float) $component['full_marks'], 0) }}">
+                                                <input class="input marks-component-input" type="number" step="0.01" min="0" max="{{ (float) $component['full_marks'] }}" name="components[{{ $enrollment->student_id }}][{{ $componentIndex }}]" data-student-id="{{ $enrollment->student_id }}" value="{{ old('components.'.$enrollment->student_id.'.'.$componentIndex, $mark && ! $mark->is_absent ? ($mark->component_marks[$componentIndex] ?? null) : null) }}" placeholder="0 - {{ number_format((float) $component['full_marks'], 0) }}">
                                                 @error('components.'.$enrollment->student_id.'.'.$componentIndex)
                                                     <span class="field-error">{{ $message }}</span>
                                                 @enderror
                                             </td>
                                         @endforeach
+                                        <td class="num"><strong data-student-total="{{ $enrollment->student_id }}">{{ $mark && ! $mark->is_absent ? number_format((float) $mark->marks_obtained, 2) : '—' }}</strong><div class="cell-sub">/ {{ number_format((float) $examSubject->full_marks, 0) }}</div></td>
                                     @else
                                         <td>
                                             <input class="input" type="number" step="0.01" min="0" max="{{ (float) $examSubject->full_marks }}" name="marks[{{ $enrollment->student_id }}]" value="{{ old('marks.'.$enrollment->student_id, $mark && ! $mark->is_absent ? $mark->marks_obtained : null) }}" placeholder="0 - {{ number_format((float) $examSubject->full_marks, 0) }}">
@@ -169,7 +171,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="{{ 5 + max(1, $components->count()) }}" class="table-empty">No active students match this paper.</td></tr>
+                                <tr><td colspan="{{ 6 + max(1, $components->count()) }}" class="table-empty">No active students match this paper.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -224,3 +226,19 @@
         </div>
     @endif
 @endsection
+
+@push('scripts')
+<script>
+document.querySelectorAll('.marks-component-input').forEach(input => {
+    const updateTotal = () => {
+        const studentId = input.dataset.studentId;
+        const fields = [...document.querySelectorAll(`.marks-component-input[data-student-id="${studentId}"]`)];
+        const values = fields.map(field => field.value.trim()).filter(value => value !== '').map(Number);
+        const total = document.querySelector(`[data-student-total="${studentId}"]`);
+        if (total) total.textContent = values.length ? values.reduce((sum, value) => sum + value, 0).toFixed(2) : '—';
+    };
+    input.addEventListener('input', updateTotal);
+    updateTotal();
+});
+</script>
+@endpush

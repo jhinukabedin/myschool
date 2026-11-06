@@ -226,7 +226,7 @@ class ReportController extends Controller
 
             return [
                 'student' => $first->student?->full_name,
-                'admission_no' => $first->student?->admission_no,
+                'admission_no' => $first->student?->student_code,
                 'class' => $enrollment?->class?->name,
                 'due' => round($rows->sum(fn ($row) => max(0, (float) $row->net_amount - (float) $row->paid_amount)), 2),
                 'oldest_due' => $rows->min('due_date')?->format('d M Y'),
@@ -239,7 +239,7 @@ class ReportController extends Controller
             ['label' => 'Total outstanding', 'value' => money($grouped->sum('due'))],
             ['label' => 'Overdue fee rows', 'value' => $assignments->where('due_date', '<', now()->toDateString())->count()],
         ];
-        $data['columns'] = ['Student', 'Admission No', 'Class', 'Fee rows', 'Oldest due', 'Outstanding'];
+        $data['columns'] = ['Student', 'Student ID', 'Class', 'Fee rows', 'Oldest due', 'Outstanding'];
         $data['rows'] = $grouped->map(fn ($row) => [
             'student' => $row['student'],
             'admission_no' => $row['admission_no'],
@@ -267,7 +267,7 @@ class ReportController extends Controller
 
             return [
                 'student' => $first->student?->full_name,
-                'admission_no' => $first->student?->admission_no,
+                'admission_no' => $first->student?->student_code,
                 'class' => $enrollment?->class?->name,
                 'items' => $rows->count(),
                 'paid' => round($rows->sum(fn ($row) => (float) $row->paid_amount), 2),
@@ -282,7 +282,7 @@ class ReportController extends Controller
             ['label' => 'Paid so far', 'value' => money($grouped->sum('paid'))],
             ['label' => 'Outstanding', 'value' => money($grouped->sum('outstanding'))],
         ];
-        $data['columns'] = ['Student', 'Admission No', 'Class', 'Fee rows', 'Paid', 'Outstanding', 'Oldest due'];
+        $data['columns'] = ['Student', 'Student ID', 'Class', 'Fee rows', 'Paid', 'Outstanding', 'Oldest due'];
         $data['rows'] = $grouped->map(fn ($row) => [
             'student' => $row['student'],
             'admission_no' => $row['admission_no'],

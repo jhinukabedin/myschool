@@ -16,8 +16,13 @@ class Staff extends Model
 
     protected $fillable = [
         'employee_no', 'user_id', 'first_name', 'last_name', 'gender', 'date_of_birth',
-        'phone', 'email', 'address', 'photo_path', 'department_id', 'designation_id',
+        'phone', 'email', 'address', 'photo_path', 'department_id', 'designation_id', 'category',
         'joining_date', 'employment_type', 'status', 'basic_salary',
+    ];
+
+    public const CATEGORIES = [
+        'academic' => 'Academic',
+        'non_academic' => 'Non-academic',
     ];
 
     protected function casts(): array
@@ -59,8 +64,28 @@ class Staff extends Model
         return $this->hasMany(TeacherAssignment::class);
     }
 
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(StaffAttendance::class);
+    }
+
+    public function leaves(): HasMany
+    {
+        return $this->hasMany(StaffLeave::class);
+    }
+
+    public function qualifications(): HasMany
+    {
+        return $this->hasMany(StaffQualification::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function getFullNameAttribute(): string
     {
         return trim($this->first_name.' '.$this->last_name);
+    }
+
+    public function getCategoryLabelAttribute(): string
+    {
+        return self::CATEGORIES[$this->category] ?? ucfirst((string) $this->category);
     }
 }

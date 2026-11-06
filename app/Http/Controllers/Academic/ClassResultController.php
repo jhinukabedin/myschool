@@ -42,13 +42,13 @@ class ClassResultController extends Controller
             fputcsv($out, ['Grading scheme', $data['exam']->gradingScheme?->name ?? 'Institution default']);
             fputcsv($out, ['Status', $data['exam']->result_published_at ? 'Published '.$data['exam']->result_published_at->format('Y-m-d H:i') : 'Unpublished']);
             fputcsv($out, []);
-            fputcsv($out, ['Rank', 'Student', 'Admission No', 'Roll', 'Section', 'GPA', 'Grade', 'Total', 'Full total', 'Percentage', 'Result', 'Failed subjects', 'Missing subjects', 'Special statuses']);
+            fputcsv($out, ['Rank', 'Student', 'Student ID', 'Roll', 'Section', 'GPA', 'Grade', 'Total', 'Full total', 'Percentage', 'Result', 'Failed subjects', 'Missing subjects', 'Special statuses']);
 
             foreach ($data['results'] as $result) {
                 fputcsv($out, [
                     $result['rank'],
                     $result['student']->full_name,
-                    $result['student']->admission_no,
+                    $result['student']->student_code,
                     $result['enrollment']->roll_no,
                     $result['enrollment']->section?->name,
                     number_format((float) $result['gpa'], 2),
@@ -99,7 +99,7 @@ class ClassResultController extends Controller
             'class' => $class,
             'section' => $section,
             'classes' => SchoolClass::ordered()->get(),
-            'sections' => Section::orderBy('name')->get(),
+            'sections' => Section::ordered()->get(),
             'results' => $results,
         ];
     }

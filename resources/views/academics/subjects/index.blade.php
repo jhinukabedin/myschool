@@ -15,6 +15,13 @@
     <div class="card">
         <div class="card-header">
             <div><h3 class="card-title">Subject Catalogue</h3><p class="card-sub">{{ $subjects->total() }} subject(s)</p></div>
+            @can('academics.manage')
+                <form id="bulk-delete-subjects" method="POST" action="{{ route('subjects.bulk-destroy') }}" onsubmit="return confirm('Delete selected subjects that are not used in examinations? Their class-subject mappings will also be removed.')">
+                    @csrf
+                    @method('DELETE')
+                    <button id="bulk-delete-subjects-button" type="submit" class="btn btn-secondary btn-sm" disabled>Delete selected (0)</button>
+                </form>
+            @endcan
             <form method="GET" action="{{ route('subjects.index') }}" class="filter-bar" style="margin:0">
                 <div class="field grow" style="min-width:220px"><input class="input" type="search" name="q" value="{{ request('q') }}" placeholder="Search name or code"></div>
                 <x-button type="submit" variant="secondary" icon="filter">Search</x-button>
@@ -22,10 +29,11 @@
         </div>
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Code</th><th>Subject</th><th>Type</th><th class="num">Full marks</th><th class="num">Pass marks</th><th class="num">Class maps</th><th class="num">Exam uses</th><th class="actions">Actions</th></tr></thead>
+                <thead><tr>@can('academics.manage')<th style="width:42px"><input type="checkbox" aria-label="Select all deletable subjects on this page" onchange="document.querySelectorAll('.subject-bulk-check:not(:disabled)').forEach(box => box.checked = this.checked); updateSubjectBulkDelete()"></th>@endcan<th>Code</th><th>Subject</th><th>Type</th><th class="num">Full marks</th><th class="num">Pass marks</th><th class="num">Class maps</th><th class="num">Exam uses</th><th class="actions">Actions</th></tr></thead>
                 <tbody>
                     @forelse ($subjects as $subject)
                         <tr>
+                                @can('academics.manage')<td><input class="subject-bulk-check" type="checkbox" name="subject_ids[]" form="bulk-delete-subjects" value="{{ $subject->id }}" @disabled($subject->examination_subjects_count > 0) aria-label="Select {{ $subject->name }}" onchange="updateSubjectBulkDelete()" title="{{ $subject->examination_subjects_count > 0 ? 'Used in an examination and cannot be deleted' : 'Select subject' }}"></td>@endcan
                             <td class="mono">{{ $subject->code }}</td>
                             <td class="cell-title">{{ $subject->name }}</td>
                             <td>{{ ucfirst($subject->type) }}</td>
@@ -45,11 +53,29 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="table-empty">No subjects match your search.</td></tr>
+                        <tr><td colspan="{{ auth()->user()?->can('academics.manage') ? 9 : 8 }}" class="table-empty">No subjects match your search.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
         {{ $subjects->links() }}
     </div>
+
+    <script>
+        function updateSubjectBulkDelete() {
+            const boxes = Array.from(document.querySelectorAll('.subject-bulk-check:not(:disabled)'));
+            const selected = boxes.filter(box => box.checked).length;
+            const button = document.getElementById('bulk-delete-subjects-button');
+            const master = document.querySelector('thead input[type="checkbox"][aria-label="Select all deletable subjects on this page"]');
+
+            if (button) {
+                button.disabled = selected === 0;
+                button.textContent = `Delete selected (${selected})`;
+            }
+            if (master) {
+                master.checked = boxes.length > 0 && selected === boxes.length;
+                master.indeterminate = selected > 0 && selected < boxes.length;
+            }
+        }
+    </script>
 @endsection

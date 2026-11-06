@@ -3,10 +3,9 @@
 @section('title', 'Classes')
 
 @section('content')
-    <x-page-header eyebrow="Admin" title="Classes & Sections" subtitle="Classes carry a numeric level used for ordering and promotion. Sections are shared and mapped per class.">
+    <x-page-header eyebrow="Academic management" title="Classes" subtitle="Create and order classes by numeric level. Sections are shared and mapped per class.">
         <x-slot:actions>
             <x-button :href="route('sections.index')" variant="secondary" icon="list-checks">Manage sections</x-button>
-            <x-button :href="route('admin.index')" variant="ghost" icon="arrow-left">Administration</x-button>
         </x-slot:actions>
     </x-page-header>
 
@@ -50,13 +49,11 @@
                                 <td class="num">{{ $class->fee_structures_count }}</td>
                                 <td class="actions">
                                     <button type="button" class="btn-icon" title="Edit" @click="$dispatch('open-modal', 'class-{{ $class->id }}')"><x-icon name="edit" :size="15" /></button>
-                                    @if ($class->enrollments_count + $class->fee_structures_count === 0)
-                                        <form method="POST" action="{{ route('classes.destroy', $class) }}" onsubmit="return confirm('Delete this class?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn-icon" title="Delete"><x-icon name="trash" :size="15" /></button>
-                                        </form>
-                                    @endif
+                                    <form method="POST" action="{{ route('classes.destroy', $class) }}" onsubmit="return confirm(@js(__('Delete this class and its dependent records?')))" style="display:inline">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn-icon" title="{{ __('Delete') }}"><x-icon name="trash" :size="15" /></button>
+                                    </form>
                                 </td>
                             </tr>
                         @empty

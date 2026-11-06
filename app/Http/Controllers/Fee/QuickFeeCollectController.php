@@ -32,7 +32,7 @@ class QuickFeeCollectController extends Controller
                 $query->whereHas('student', fn ($q) => $q
                     ->where('first_name', 'like', "%{$term}%")
                     ->orWhere('last_name', 'like', "%{$term}%")
-                    ->orWhere('admission_no', 'like', "%{$term}%")
+                    ->orWhere('student_code', 'like', "%{$term}%")
                     ->orWhere('phone', 'like', "%{$term}%")
                     ->orWhereHas('guardians', fn ($g) => $g->where('phone', 'like', "%{$term}%")));
             })
@@ -43,9 +43,38 @@ class QuickFeeCollectController extends Controller
 
         $dues = $this->dueMap($session, $enrollments->pluck('student_id'));
 
+        // Data for the live allocation preview inside each Collect modal: every
+        // outstanding row for the listed students, in the same order the server
+        // will allocate (oldest due first, then id).
+        $allocationRows = collect();
+
+        if ($session) {
+            $horizon = \App\Support\FeeWindow::horizonDate();
+
+            $allocationRows = StudentFeeAssignment::query()
+                ->with('category')
+                ->where('academic_session_id', $session->id)
+                ->whereIn('student_id', $enrollments->pluck('student_id'))
+                ->whereIn('status', ['pending', 'partial'])
+                ->withSum(['paymentAllocations as paid_total' => fn ($query) => $query
+                    ->whereHas('payment', fn ($payment) => $payment->where('status', 'completed'))], 'amount')
+                ->orderBy('due_date')
+                ->orderBy('id')
+                ->get()
+                ->groupBy('student_id')
+                ->map(fn ($rows) => $rows->map(fn (StudentFeeAssignment $row) => [
+                    'fee' => $row->category?->name ?? 'Fee',
+                    'period' => $row->period,
+                    'due' => $row->due_date?->format('d M Y'),
+                    'balance' => round(max(0, (float) $row->net_amount - (float) $row->paid_amount), 2),
+                    'future' => $row->due_date !== null && $row->due_date->toDateString() > $horizon,
+                ])->values()->all());
+        }
+
         return view('fees.quick', [
             'enrollments' => $enrollments,
             'dues' => $dues,
+            'allocationRows' => $allocationRows,
             'session' => $session,
             'recent' => Payment::with('student')
                 ->when($session, fn ($query) => $query->where('academic_session_id', $session->id))
@@ -62,7 +91,12 @@ class QuickFeeCollectController extends Controller
         abort_unless($session, 404, 'No academic session is configured.');
 
         $student = Student::findOrFail($request->integer('student_id'));
-        $lines = $this->payments->autoAllocate($student, $session, (float) $request->input('amount'));
+        $lines = $this->payments->autoAllocate(
+            $student,
+            $session,
+            (float) $request->input('amount'),
+            $request->boolean('include_future')
+        );
 
         $payment = $this->payments->collect(
             $student,
@@ -87,6 +121,9 @@ class QuickFeeCollectController extends Controller
             ->where('academic_session_id', $session->id)
             ->whereIn('student_id', $studentIds)
             ->whereIn('status', ['pending', 'partial'])
+            ->where(fn ($query) => $query
+                ->whereNull('due_date')
+                ->orWhere('due_date', '<=', \App\Support\FeeWindow::horizonDate()))
             ->withSum(['paymentAllocations as paid_total' => fn ($query) => $query
                 ->whereHas('payment', fn ($payment) => $payment->where('status', 'completed'))], 'amount')
             ->get()

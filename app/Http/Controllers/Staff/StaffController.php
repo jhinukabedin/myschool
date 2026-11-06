@@ -28,16 +28,22 @@ class StaffController extends Controller
 
     public function index(Request $request): View
     {
+        $showArchived = $request->boolean('archived');
+
         $staff = Staff::query()
             ->with(['department', 'designation'])
+            ->when($showArchived, fn ($query) => $query->onlyTrashed(), fn ($query) => $query->whereNull('deleted_at'))
             ->when($request->filled('q'), function ($query) use ($request) {
                 $term = $request->string('q');
-                $query->where('first_name', 'like', "%{$term}%")
-                    ->orWhere('last_name', 'like', "%{$term}%")
-                    ->orWhere('employee_no', 'like', "%{$term}%")
-                    ->orWhere('phone', 'like', "%{$term}%");
+                $query->where(function ($inner) use ($term) {
+                    $inner->where('first_name', 'like', "%{$term}%")
+                        ->orWhere('last_name', 'like', "%{$term}%")
+                        ->orWhere('employee_no', 'like', "%{$term}%")
+                        ->orWhere('phone', 'like', "%{$term}%");
+                });
             })
             ->when($request->filled('department_id'), fn ($query) => $query->where('department_id', $request->integer('department_id')))
+            ->when($request->filled('category'), fn ($query) => $query->where('category', $request->string('category')))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->orderBy('first_name')
             ->paginate(20)
@@ -45,10 +51,14 @@ class StaffController extends Controller
 
         return view('staff.index', [
             'staff' => $staff,
+            'showArchived' => $showArchived,
+            'archivedCount' => Staff::onlyTrashed()->count(),
             'departments' => Department::orderBy('name')->get(),
             'designations' => Designation::orderBy('name')->get(),
             'summary' => [
                 'active' => Staff::where('status', 'active')->count(),
+                'academic' => Staff::where('status', 'active')->where('category', 'academic')->count(),
+                'non_academic' => Staff::where('status', 'active')->where('category', 'non_academic')->count(),
                 'departments' => Department::count(),
                 'payroll_month' => Payroll::where('month', now()->format('Y-m'))->sum('net_salary'),
             ],
@@ -62,6 +72,7 @@ class StaffController extends Controller
                 'gender' => 'male',
                 'employment_type' => 'full_time',
                 'status' => 'active',
+                'category' => 'academic',
                 'joining_date' => now()->toDateString(),
                 'basic_salary' => 0,
             ]),
@@ -76,11 +87,12 @@ class StaffController extends Controller
     {
         $data = $request->validated();
         $salary = $this->salaryFields($data);
+        $qualifications = $this->qualifications($data);
         $role = Role::query()->findOrFail($data['role_id']);
 
         $photo = $request->hasFile('photo') ? $request->file('photo')->store('staff', 'public') : null;
 
-        [$staff, $account] = DB::transaction(function () use ($data, $salary, $photo, $role, $request) {
+        [$staff, $account] = DB::transaction(function () use ($data, $salary, $qualifications, $photo, $role, $request) {
             $staff = Staff::create([
                 'employee_no' => $this->numbers->employeeNumber((int) now()->format('Y')),
                 'first_name' => $data['first_name'],
@@ -93,6 +105,7 @@ class StaffController extends Controller
                 'photo_path' => $photo,
                 'department_id' => $data['department_id'] ?? null,
                 'designation_id' => $data['designation_id'] ?? null,
+                'category' => $data['category'],
                 'joining_date' => $data['joining_date'],
                 'employment_type' => $data['employment_type'],
                 'status' => $data['status'],
@@ -100,6 +113,7 @@ class StaffController extends Controller
             ]);
 
             $staff->salaryStructures()->create($salary + ['effective_from' => now()->toDateString()]);
+            $this->syncQualifications($staff, $qualifications);
 
             $account = $this->accounts->provisionStaff(
                 $staff,
@@ -127,7 +141,7 @@ class StaffController extends Controller
 
     public function show(Staff $staff): View
     {
-        $staff->load(['department', 'designation', 'user.role', 'salaryStructures', 'payrolls' => fn ($query) => $query->latest('month')]);
+        $staff->load(['department', 'designation', 'user.role', 'salaryStructures', 'qualifications', 'payrolls' => fn ($query) => $query->latest('month')]);
 
         return view('staff.show', [
             'staffMember' => $staff,
@@ -137,7 +151,7 @@ class StaffController extends Controller
 
     public function edit(Staff $staff): View
     {
-        $staff->load(['salaryStructures', 'user']);
+        $staff->load(['salaryStructures', 'user', 'qualifications']);
 
         return view('staff.form', [
             'staffMember' => $staff,
@@ -153,6 +167,7 @@ class StaffController extends Controller
         $data = $request->validated();
         $before = $staff->getAttributes();
         $photo = $staff->photo_path;
+        $qualifications = $this->qualifications($data);
         $role = Role::query()->findOrFail($data['role_id']);
 
         if ($request->hasFile('photo')) {
@@ -162,7 +177,7 @@ class StaffController extends Controller
             $photo = $request->file('photo')->store('staff', 'public');
         }
 
-        DB::transaction(function () use ($staff, $data, $photo, $role, $request, $before) {
+        DB::transaction(function () use ($staff, $data, $photo, $role, $request, $before, $qualifications) {
             $staff->update([
                 'first_name' => $data['first_name'],
                 'last_name' => $data['last_name'],
@@ -174,11 +189,14 @@ class StaffController extends Controller
                 'photo_path' => $photo,
                 'department_id' => $data['department_id'] ?? null,
                 'designation_id' => $data['designation_id'] ?? null,
+                'category' => $data['category'],
                 'joining_date' => $data['joining_date'],
                 'employment_type' => $data['employment_type'],
                 'status' => $data['status'],
                 'basic_salary' => $data['basic_salary'],
             ]);
+
+            $this->syncQualifications($staff, $qualifications);
 
             $account = $this->accounts->provisionStaff(
                 $staff->fresh(),
@@ -240,6 +258,36 @@ class StaffController extends Controller
         return back()->with('success', 'Department added.');
     }
 
+    public function updateDepartment(Request $request, Department $department): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100', 'unique:departments,name,'.$department->id],
+        ]);
+
+        $before = $department->only(['name']);
+        $department->update($data);
+
+        $this->audit->record('department_updated', 'Staff', "Department {$department->name} renamed from {$before['name']}", $department, $before, $data);
+
+        return back()->with('success', 'Department updated.');
+    }
+
+    public function destroyDepartment(Department $department): RedirectResponse
+    {
+        $inUse = $department->staff()->withTrashed()->count();
+
+        if ($inUse > 0) {
+            return back()->with('error', "“{$department->name}” is assigned to {$inUse} staff member(s). Move them to another department before deleting it.");
+        }
+
+        $before = $department->only(['name']);
+        $department->delete();
+
+        $this->audit->record('department_deleted', 'Staff', "Department {$before['name']} deleted", null, $before, null);
+
+        return back()->with('success', 'Department deleted.');
+    }
+
     public function storeDesignation(Request $request): RedirectResponse
     {
         $data = $request->validate(['name' => ['required', 'string', 'max:100', 'unique:designations,name']]);
@@ -247,6 +295,104 @@ class StaffController extends Controller
         $this->audit->record('designation_created', 'Staff', "Designation {$designation->name} created", $designation, null, $data);
 
         return back()->with('success', 'Designation added.');
+    }
+
+    public function updateDesignation(Request $request, Designation $designation): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100', 'unique:designations,name,'.$designation->id],
+        ]);
+
+        $before = $designation->only(['name']);
+        $designation->update($data);
+
+        $this->audit->record('designation_updated', 'Staff', "Designation {$designation->name} renamed from {$before['name']}", $designation, $before, $data);
+
+        return back()->with('success', 'Designation updated.');
+    }
+
+    public function destroyDesignation(Designation $designation): RedirectResponse
+    {
+        $inUse = $designation->staff()->withTrashed()->count();
+
+        if ($inUse > 0) {
+            return back()->with('error', "“{$designation->name}” is assigned to {$inUse} staff member(s). Move them to another designation before deleting it.");
+        }
+
+        $before = $designation->only(['name']);
+        $designation->delete();
+
+        $this->audit->record('designation_deleted', 'Staff', "Designation {$before['name']} deleted", null, $before, null);
+
+        return back()->with('success', 'Designation deleted.');
+    }
+
+    /**
+     * Organisation setup: rename or remove departments and designations.
+     */
+    public function organisation(): View
+    {
+        return view('staff.organisation', [
+            'departments' => Department::withCount('staff')->orderBy('name')->get(),
+            'designations' => Designation::withCount('staff')->orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * Archive a staff member. Soft delete keeps payroll and salary history
+     * intact; the linked login is deactivated so it can no longer sign in.
+     */
+    public function destroy(Staff $staff): RedirectResponse
+    {
+        $before = $staff->getAttributes();
+
+        DB::transaction(function () use ($staff) {
+            if ($staff->user) {
+                $staff->user->forceFill(['is_active' => false])->save();
+            }
+
+            $staff->delete();
+        });
+
+        $this->audit->record(
+            'staff_archived',
+            'Staff',
+            "Staff profile {$staff->full_name} ({$staff->employee_no}) archived and login deactivated",
+            $staff,
+            $before,
+            ['deleted_at' => now()->toDateTimeString()]
+        );
+
+        return redirect()->route('staff.index')->with('success', 'Staff member archived. Payroll and salary history are preserved.');
+    }
+
+    /**
+     * Restore an archived staff profile and re-activate its login.
+     */
+    public function restore(Staff $staff): RedirectResponse
+    {
+        if (! $staff->trashed()) {
+            return back()->with('error', 'This staff member is not archived.');
+        }
+
+        DB::transaction(function () use ($staff) {
+            $staff->restore();
+
+            if ($staff->user) {
+                $staff->user->forceFill(['is_active' => true])->save();
+            }
+        });
+
+        $this->audit->record(
+            'staff_restored',
+            'Staff',
+            "Staff profile {$staff->full_name} ({$staff->employee_no}) restored and login reactivated",
+            $staff,
+            ['deleted_at' => $staff->deleted_at?->toDateTimeString()],
+            ['deleted_at' => null]
+        );
+
+        return redirect()->route('staff.index')->with('success', 'Staff member restored.');
     }
 
     private function assignableRoles()
@@ -270,5 +416,42 @@ class StaffController extends Controller
             'provident_fund' => $data['provident_fund'] ?? 0,
             'other_deduction' => $data['other_deduction'] ?? 0,
         ];
+    }
+
+    /**
+     * Keep only meaningful qualification rows (exam name required).
+     *
+     * @return array<int, array{exam_name: string, institution: ?string, passing_year: ?int, result: ?string, sort_order: int}>
+     */
+    private function qualifications(array $data): array
+    {
+        $rows = [];
+
+        foreach (array_values($data['qualifications'] ?? []) as $index => $row) {
+            $exam = trim((string) ($row['exam_name'] ?? ''));
+
+            if ($exam === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'exam_name' => $exam,
+                'institution' => filled($row['institution'] ?? null) ? trim((string) $row['institution']) : null,
+                'passing_year' => filled($row['passing_year'] ?? null) ? (int) $row['passing_year'] : null,
+                'result' => filled($row['result'] ?? null) ? trim((string) $row['result']) : null,
+                'sort_order' => $index,
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function syncQualifications(Staff $staff, array $rows): void
+    {
+        $staff->qualifications()->delete();
+
+        if ($rows !== []) {
+            $staff->qualifications()->createMany($rows);
+        }
     }
 }

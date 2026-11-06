@@ -4,7 +4,7 @@
 
 @section('content')
     <x-page-header eyebrow="Website" title="Navigation Menus"
-        subtitle="Control the header and footer navigation. If no active menu exists for a location, the public site falls back to its built-in links.">
+        subtitle="Control the header, footer, sidebar and secondary navigation. If no active menu exists for a location, the public site falls back to its built-in links.">
         <x-slot:actions>
             <x-button :href="route('website-content.index')" variant="secondary" icon="layout-dashboard">Content library</x-button>
         </x-slot:actions>

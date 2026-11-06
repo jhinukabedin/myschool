@@ -86,34 +86,3 @@
         </div>
     </dialog>
 @endsection
-
-@push('scripts')
-    <script>
-        (() => {
-            const dialog = document.getElementById('video-lightbox');
-            const frame = document.getElementById('video-frame');
-            if (!dialog || !frame) return;
-
-            const open = (src) => {
-                frame.src = src;
-                if (typeof dialog.showModal === 'function') { dialog.showModal(); } else { dialog.setAttribute('open', 'open'); }
-            };
-            const close = () => {
-                dialog.close?.();
-                frame.src = '';
-            };
-
-            document.querySelectorAll('[data-video-embed]').forEach((card) => {
-                card.addEventListener('click', () => {
-                    const embed = card.dataset.videoEmbed;
-                    if (embed) { open(embed); return; }
-                    if (card.dataset.videoUrl) { window.open(card.dataset.videoUrl, '_blank', 'noopener'); }
-                });
-            });
-
-            document.getElementById('video-close')?.addEventListener('click', close);
-            dialog.addEventListener('close', () => { frame.src = ''; });
-            dialog.addEventListener('click', (event) => { if (event.target === dialog) close(); });
-        })();
-    </script>
-@endpush

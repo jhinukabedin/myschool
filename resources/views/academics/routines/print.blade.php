@@ -1,203 +1,51 @@
-@extends('layouts.print')
-
-@section('title', 'Class Routine - '.($routine->class?->name ?? 'Class').' Section '.($routine->section?->name ?? ''))
-
-@push('head')
-<style>
-    @page {
-        size: A4 landscape;
-        margin: 8mm;
-    }
-
-    .routine-print-sheet {
-        background: #fff;
-        color: #111;
-        max-width: 1120px;
-        margin: 0 auto;
-        padding: 18px 22px 22px;
-    }
-
-    .routine-print-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 20px;
-        padding-bottom: 12px;
-        border-bottom: 2px solid #111;
-    }
-
-    .routine-print-brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .routine-print-logo {
-        width: 54px;
-        height: 54px;
-        border-radius: 10px;
-        border: 1px solid #bbb;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 800;
-        font-size: 18px;
-        letter-spacing: 0.04em;
-        background: #f5f3ff;
-        overflow: hidden;
-    }
-
-    .routine-print-logo img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-    }
-
-    .routine-print-school {
-        font-size: 21px;
-        font-weight: 800;
-        line-height: 1.15;
-    }
-
-    .routine-print-sub {
-        font-size: 11px;
-        color: #444;
-        margin-top: 2px;
-    }
-
-    .routine-print-badge {
-        text-align: right;
-        min-width: 190px;
-    }
-
-    .routine-print-badge .title {
-        font-size: 15px;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-
-    .routine-print-meta {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 8px 18px;
-        margin: 12px 0 16px;
-        font-size: 11px;
-    }
-
-    .routine-print-meta span {
-        display: block;
-        color: #555;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        font-size: 9px;
-        font-weight: 700;
-    }
-
-    .routine-print-meta strong {
-        font-size: 13px;
-    }
-
-    .routine-print-sheet .routine-table-wrap {
-        overflow: visible;
-    }
-
-    .routine-print-sheet .routine-table {
-        font-size: 10px;
-    }
-
-    .routine-print-sheet .routine-table th,
-    .routine-print-sheet .routine-table td {
-        padding: 5px 4px;
-    }
-
-    .routine-print-sheet .routine-table thead th {
-        font-size: 9px;
-    }
-
-    .routine-print-sheet .routine-cell-subject {
-        font-size: 10px;
-    }
-
-    .routine-print-sheet .routine-cell-meta,
-    .routine-print-sheet .routine-cell-room {
-        font-size: 8.5px;
-    }
-
-    .routine-print-foot {
-        display: flex;
-        justify-content: space-between;
-        gap: 18px;
-        margin-top: 16px;
-        padding-top: 10px;
-        border-top: 1px solid #bbb;
-        font-size: 9.5px;
-        color: #555;
-    }
-
-    @media print {
-        .routine-print-sheet {
-            padding: 0;
-            max-width: none;
+<!doctype html>
+<html lang="{{ str_replace('_', '-', $documentLocale ?? app()->getLocale()) }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ $routine->class?->name }} - {{ $routine->section?->name }} · {{ __('Class Routine') }}</title>
+    <link rel="preload" href="{{ $routineFontRegular }}" as="font" type="font/ttf" crossorigin>
+    <style>
+        @font-face { font-family: NotoRoutine; font-style: normal; font-weight: 400; src: url("{{ $routineFontRegular }}") format("truetype"); }
+        @font-face { font-family: NotoRoutine; font-style: normal; font-weight: 700; src: url("{{ $routineFontBold }}") format("truetype"); }
+        @page { size: A4 landscape; margin: 8mm; }
+        html, body { min-height:100%; margin:0; padding:0; }
+        body { background:#edf1f7; color:#172b4d; font-family:NotoRoutine,"Noto Sans Bengali",sans-serif; }
+        .routine-print-toolbar { position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px max(18px,calc((100vw - 1180px)/2));background:#172b4d;color:#fff;box-shadow:0 3px 14px rgba(15,35,65,.15); }
+        .routine-print-toolbar a,.routine-print-toolbar button { display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:8px 14px;border:1px solid rgba(255,255,255,.32);border-radius:7px;background:transparent;color:#fff;font:700 13px NotoRoutine,"Noto Sans Bengali",sans-serif;text-decoration:none;cursor:pointer; }
+        .routine-print-toolbar .routine-print-primary { border-color:#8061e8;background:#7351db; }
+        .routine-print-actions { display:flex;gap:8px; }
+        .routine-document { margin:22px auto;background:#fff; }
+        @if ($isEmbedded)
+            .routine-print-toolbar { display:none !important; }
+            .routine-document { margin:0 auto;background:#fff; }
+        @endif
+        @media print {
+            html,body { min-height:0;background:#fff; }
+            .routine-print-toolbar { display:none !important; }
+            .routine-document { max-width:none;margin:0;background:#fff; }
         }
-
-        .routine-print-foot {
-            page-break-inside: avoid;
-        }
-    }
-</style>
-@endpush
-
-@section('content')
-    <div class="routine-print-sheet">
-        <div class="routine-print-head">
-            <div class="routine-print-brand">
-                <div class="routine-print-logo">
-                    @if (school_setting('website_logo_path'))
-                        <img src="{{ asset('storage/'.ltrim(school_setting('website_logo_path'), '/')) }}" alt="{{ school_name() }} logo">
-                    @else
-                        {{ school_setting('website_logo_mark', 'HS') }}
-                    @endif
-                </div>
-                <div>
-                    <div class="routine-print-school">{{ school_name() }}</div>
-                    <div class="routine-print-sub">{{ school_setting('school_address') }}</div>
-                    <div class="routine-print-sub">
-                        {{ school_setting('school_phone') }}@if (school_setting('school_email')) &middot; {{ school_setting('school_email') }} @endif
-                    </div>
-                </div>
-            </div>
-            <div class="routine-print-badge">
-                <div class="title">Class Routine</div>
-                <div class="routine-print-sub">Weekly timetable</div>
-                <div class="routine-print-sub">Printed {{ now()->format('d M Y, H:i') }}</div>
-            </div>
+    </style>
+</head>
+<body>
+    <nav class="routine-print-toolbar" aria-label="{{ __('Routine actions', [], $documentLocale ?? app()->getLocale()) }}">
+        @unless ($isEmbedded)
+            <a href="{{ $backUrl }}">{{ __('Go back', [], $documentLocale ?? app()->getLocale()) }}</a>
+        @endunless
+        <div class="routine-print-actions">
+            <a href="{{ $pdfDownloadUrl }}">{{ __('Download PDF', [], $documentLocale ?? app()->getLocale()) }}</a>
+            <button class="routine-print-primary" type="button" onclick="window.print()">{{ __('Print', [], $documentLocale ?? app()->getLocale()) }}</button>
         </div>
-
-        <div class="routine-print-meta">
-            <div><span>Academic year</span><strong>{{ $routine->academicSession?->name ?? '-' }}</strong></div>
-            <div><span>Class</span><strong>{{ $routine->class?->name ?? '-' }}</strong></div>
-            <div><span>Section</span><strong>{{ $routine->section?->name ?? '-' }}</strong></div>
-            <div><span>Effective from</span><strong>{{ $routine->effectiveDate()->format('d M Y') }}</strong></div>
-        </div>
-
-        @include('academics.routines._timetable', [
-            'editable' => false,
-            'teacherView' => false,
-            'print' => true,
-        ])
-
-        <div class="routine-print-foot">
-            <span>Days run down the rows and time slots run across the columns. Lunch and break periods appear in every day row.</span>
-            <span>{{ $routine->class?->name }} &middot; Section {{ $routine->section?->name }} &middot; {{ $routine->academicSession?->name }}</span>
-        </div>
-    </div>
-
-    @if ($autoPrint)
-        <script>
-            window.addEventListener('load', function () {
-                window.print();
-            });
-        </script>
-    @endif
-@endsection
+    </nav>
+    @include('academics.routines._document', [
+        'routineFontFamily' => 'NotoRoutine',
+        'routineFontRegular' => $routineFontRegular,
+        'routineFontBold' => $routineFontBold,
+        'routineLogo' => $routineLogo,
+        'routineLogoMark' => $routineLogoMark,
+        'routineEstablishedYear' => $routineEstablishedYear,
+        'documentLocale' => $documentLocale ?? null,
+    ])
+    @include('layouts.partials.print-developer-footer')
+</body>
+</html>

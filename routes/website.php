@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\WebsiteController;
+use App\Http\Controllers\Academic\ClassRoutineController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,7 +40,10 @@ Route::get('/calendar', [WebsiteController::class, 'calendar'])->name('website.c
 
 Route::get('/gallery', [WebsiteController::class, 'gallery'])->name('website.gallery');
 Route::get('/downloads', [WebsiteController::class, 'downloads'])->name('website.downloads');
+Route::get('/class-routine/{routine}', [ClassRoutineController::class, 'publicShow'])->name('website.class-routine.show');
+Route::get('/class-routine/{routine}/pdf', [ClassRoutineController::class, 'publicPdf'])->name('website.class-routine.pdf');
 Route::get('/class-routine', [WebsiteController::class, 'classRoutine'])->name('website.class-routine');
+Route::get('/results', [WebsiteController::class, 'results'])->name('website.results');
 Route::get('/video-gallery', [WebsiteController::class, 'videoGallery'])->name('website.video-gallery');
 
 Route::get('/contact', [WebsiteController::class, 'contact'])->name('website.contact');

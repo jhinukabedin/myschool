@@ -21,7 +21,7 @@ class RoutineTimeSlot extends Model
     ];
 
     protected $fillable = [
-        'name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active',
+        'class_id', 'name', 'start_time', 'end_time', 'type', 'sort_order', 'is_active',
     ];
 
     protected function casts(): array
@@ -35,6 +35,11 @@ class RoutineTimeSlot extends Model
     public function entries(): HasMany
     {
         return $this->hasMany(RoutineEntry::class, 'routine_time_slot_id');
+    }
+
+    public function schoolClass(): BelongsTo
+    {
+        return $this->belongsTo(SchoolClass::class, 'class_id');
     }
 
     public function scopeActive(Builder $query): Builder
@@ -74,7 +79,7 @@ class RoutineTimeSlot extends Model
 
     public function getTypeLabelAttribute(): string
     {
-        return self::TYPES[$this->type] ?? ucfirst((string) $this->type);
+        return __(self::TYPES[$this->type] ?? ucfirst((string) $this->type));
     }
 
     /**
@@ -84,10 +89,10 @@ class RoutineTimeSlot extends Model
     public function getBreakLabelAttribute(): string
     {
         return match ($this->type) {
-            'lunch' => 'LUNCH BREAK',
-            'break' => strtoupper($this->name ?: 'BREAK'),
-            'assembly' => strtoupper($this->name ?: 'ASSEMBLY'),
-            default => strtoupper($this->name ?: 'BREAK'),
+            'lunch' => __('LUNCH BREAK'),
+            'break' => __(strtoupper($this->name ?: 'BREAK')),
+            'assembly' => __(strtoupper($this->name ?: 'ASSEMBLY')),
+            default => __(strtoupper($this->name ?: 'BREAK')),
         };
     }
 

@@ -53,4 +53,25 @@ class FeeStructure extends Model
     {
         return number_format((float) $this->items->sum('amount'), 2, '.', '');
     }
+
+    /**
+     * What the structure actually adds up to after each item's discount and scholarship.
+     */
+    public function getNetTotalAttribute(): string
+    {
+        return number_format(
+            (float) $this->items->sum(fn ($item) => (float) $item->net_amount),
+            2,
+            '.'
+        );
+    }
+
+    public function getScholarshipTotalAttribute(): string
+    {
+        return number_format(
+            (float) $this->items->sum(fn ($item) => $item->scholarshipAmount()),
+            2,
+            '.'
+        );
+    }
 }

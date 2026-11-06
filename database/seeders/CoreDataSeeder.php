@@ -281,7 +281,7 @@ class CoreDataSeeder extends Seeder
             ['title' => 'বিদ্যালয় পরিচিতি', 'route_name' => 'website.about'],
             ['title' => 'একাডেমিক', 'route_name' => 'website.academics'],
             ['title' => 'নোটিশ', 'route_name' => 'website.notices'],
-            ['title' => 'ফলাফল', 'url' => '/student/login'],
+            ['title' => 'ফলাফল', 'route_name' => 'website.results'],
             ['title' => 'গ্যালারি', 'route_name' => 'website.gallery'],
             ['title' => 'ভর্তি', 'route_name' => 'website.admission'],
             ['title' => 'যোগাযোগ', 'route_name' => 'website.contact'],

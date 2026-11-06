@@ -7,7 +7,7 @@
 
 @if (! $menu)
     <div class="info-box" style="margin-bottom:12px">
-        No menu exists for this footer column yet. Create one to start adding items.
+        No menu exists for this location yet. Create one to start adding items.
     </div>
     <form method="POST" action="{{ route('website-menus.store') }}">
         @csrf

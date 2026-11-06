@@ -10,6 +10,7 @@ use App\Models\Subject;
 use App\Services\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -72,5 +73,25 @@ class ClassSubjectController extends Controller
         $this->audit->record('class_subject_removed', 'Academics', 'Subject mapping removed', null, $data, null);
 
         return back()->with('success', 'Subject mapping removed. Existing exam records are unaffected.');
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'mapping_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'mapping_ids.*' => ['required', 'integer', 'distinct', 'exists:class_subjects,id'],
+        ]);
+
+        $mappings = ClassSubject::query()->whereIn('id', $data['mapping_ids'])->get();
+
+        DB::transaction(function () use ($mappings) {
+            foreach ($mappings as $mapping) {
+                $attributes = $mapping->getAttributes();
+                $mapping->delete();
+                $this->audit->record('class_subject_removed', 'Academics', 'Subject mapping removed in bulk', null, $attributes, null);
+            }
+        });
+
+        return back()->with('success', $mappings->count().' mapping(s) removed. Existing exam records are unaffected.');
     }
 }

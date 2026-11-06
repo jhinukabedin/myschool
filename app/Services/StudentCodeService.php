@@ -5,16 +5,20 @@ namespace App\Services;
 use App\Models\Enrollment;
 use App\Models\SchoolClass;
 use App\Models\Student;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class StudentCodeService
 {
     /**
-     * Build and persist the permanent student ID.
+     * Permanent Student ID crew — YY + CLASS_CODE + SERIAL, digits only.
      *
-     * Format: academic year + class number + roll, e.g. 202601001 for
-     * Class 1, roll 1 in the 2026 session. A collision (the same roll can
-     * legitimately exist in two sections) advances the numeric suffix so the
-     * ID always remains unique.
+     * CLASS_CODE is derived from the class's numeric_level: code = level + 1,
+     * zero-padded to 2 digits. No hardcoded class mapping.
+     *
+     * The ID is assigned once at admission and stored as an immutable snapshot:
+     * admission year (2 digits), class code (2 digits), and a per year+class
+     * serial (3 digits, atomic via document_sequences — never a COUNT).
      */
     public function ensure(Student $student, ?Enrollment $enrollment = null): string
     {
@@ -31,43 +35,120 @@ class StudentCodeService
         $session = $enrollment?->academicSession;
         $class = $enrollment?->class;
 
-        $year = $session?->start_date?->year;
-        if (! $year) {
-            $year = (int) (preg_match('/\d{4}/', (string) $session?->name, $matches)
-                ? $matches[0]
-                : now()->year);
-        }
+        // Prefer the admission date year (the snapshot) so the ID never changes
+        // when the student is promoted.
+        $year = $student->admission_date?->year
+            ?? $session?->start_date?->year
+            ?? (int) (preg_match('/\d{4}/', (string) $session?->name, $m) ? $m[0] : now()->year);
 
-        $classCode = $this->classNumber($class);
-        $roll = max(1, (int) ($enrollment?->roll_no ?? 1));
-        $prefix = str_pad((string) $year, 4, '0', STR_PAD_LEFT)
-            .str_pad((string) $classCode, 2, '0', STR_PAD_LEFT);
+        $classCode = $this->classCode($class);
+        $yy = self::twoDigitYear($year);
 
-        $sequence = $roll;
-        do {
-            $code = $prefix.str_pad((string) $sequence, 3, '0', STR_PAD_LEFT);
+        return DB::transaction(function () use ($student, $yy, $classCode) {
+            $key = "studentid:{$yy}:{$classCode}";
+
+            DB::table('document_sequences')->insertOrIgnore([
+                'key' => $key,
+                'last_number' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $sequence = DB::table('document_sequences')->where('key', $key)->lockForUpdate()->first();
+
+            // The sequence may lag behind IDs that were backfilled or inserted
+            // outside this service, so always start after the highest serial
+            // already issued for this prefix. This prevents duplicate IDs.
+            $floor = $this->highestIssuedSerial($yy.$classCode);
+            $serial = max((int) $sequence->last_number, $floor) + 1;
+
+            if ($serial > 999) {
+                throw ValidationException::withMessages([
+                    'student_id' => 'The admission serial for this year and class has reached its limit (999).',
+                ]);
+            }
+
+            DB::table('document_sequences')->where('key', $key)->update([
+                'last_number' => $serial,
+                'updated_at' => now(),
+            ]);
+
+            $code = $yy . $classCode . str_pad((string) $serial, 3, '0', STR_PAD_LEFT);
+
+            // Belt-and-braces uniqueness check (sequence locking already prevents dupes).
             $taken = Student::withTrashed()
                 ->where('student_code', $code)
-                ->when($student->exists, fn ($query) => $query->whereKeyNot($student->getKey()))
+                ->when($student->exists, fn ($q) => $q->whereKeyNot($student->getKey()))
                 ->exists();
-            $sequence++;
-        } while ($taken);
 
-        $student->forceFill(['student_code' => $code])->save();
+            if ($taken) {
+                throw ValidationException::withMessages([
+                    'student_id' => 'Student ID collision detected. Please retry the admission.',
+                ]);
+            }
 
-        return $code;
+            $student->forceFill(['student_code' => $code])->save();
+
+            return $code;
+        });
     }
 
-    public function classNumber(?SchoolClass $class): int
+    /**
+     * Highest 3-digit serial already used for a YY+CLASS_CODE prefix.
+     */
+    public function highestIssuedSerial(string $prefix): int
+    {
+        $max = 0;
+
+        foreach (Student::withTrashed()->where('student_code', 'like', $prefix.'%')->pluck('student_code') as $existing) {
+            if (preg_match('/^'.$prefix.'(\d{3})$/', (string) $existing, $m)) {
+                $max = max($max, (int) $m[1]);
+            }
+        }
+
+        return $max;
+    }
+
+    public function classCode(?SchoolClass $class): string
     {
         if (! $class) {
-            return 0;
+            return '00';
         }
 
-        if (preg_match('/(\d+)/', (string) $class->name, $matches)) {
-            return max(0, (int) $matches[1]);
+        $level = (int) $class->numeric_level;
+        $code = $level + 1;
+
+        if ($code < 1 || $code > 99) {
+            throw ValidationException::withMessages([
+                'class_id' => "Class {$class->name} has an unusable numeric level ({$level}). The generated class code must fit in two digits (01-99).",
+            ]);
         }
 
-        return max(0, (int) $class->numeric_level);
+        $duplicate = SchoolClass::query()
+            ->where('numeric_level', $level)
+            ->whereKeyNot($class->id)
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'class_id' => "Another class already uses numeric level {$level}. Fix the class levels before admitting students.",
+            ]);
+        }
+
+        return str_pad((string) $code, 2, '0', STR_PAD_LEFT);
+    }
+
+    public static function twoDigitYear(int $year): string
+    {
+        return str_pad((string) ($year % 100), 2, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * @deprecated Kept for internal callers that only need the numeric level
+     * (none should call this for ID generation anymore).
+     */
+    public function classNumber(?SchoolClass $class): int
+    {
+        return $class ? (int) $class->numeric_level : 0;
     }
 }

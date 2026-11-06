@@ -81,12 +81,12 @@
             <div class="card-header"><div><h3 class="card-title">My Students</h3><p class="card-sub">{{ $students->count() }} student(s) in your assigned classes and sections</p></div></div>
             <div class="table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>Student</th><th>Admission no</th><th>Class</th><th>Section</th><th>Roll</th></tr></thead>
+                    <thead><tr><th>Student</th><th>Student ID</th><th>Class</th><th>Section</th><th>Roll</th></tr></thead>
                     <tbody>
                         @forelse ($students as $enrollment)
                             <tr>
                                 <td class="cell-title">{{ $enrollment->student?->full_name }}</td>
-                                <td class="mono">{{ $enrollment->student?->admission_no }}</td>
+                                <td class="mono">{{ $enrollment->student?->student_code }}</td>
                                 <td>{{ $enrollment->class?->name }}</td>
                                 <td>{{ $enrollment->section?->name }}</td>
                                 <td>{{ $enrollment->roll_no }}</td>

@@ -57,11 +57,19 @@ class SchoolClassController extends Controller
 
     public function destroy(SchoolClass $schoolClass): RedirectResponse
     {
-        if ($schoolClass->enrollments()->exists() || $schoolClass->feeStructures()->exists()) {
-            return back()->with('error', 'This class has students or fee structures and cannot be deleted.');
+        if ($schoolClass->enrollments()->exists()) {
+            return back()->with('error', 'This class has enrolled students and cannot be deleted.');
         }
 
         $old = $schoolClass->getAttributes();
+
+        // Remove dependent configuration so the class can be deleted even when
+        // it only has fee structures, subject mappings or routine slots.
+        $schoolClass->feeStructures()->delete();
+        $schoolClass->sections()->detach();
+        \App\Models\ClassSubject::where('class_id', $schoolClass->id)->delete();
+        \App\Models\RoutineTimeSlot::where('class_id', $schoolClass->id)->delete();
+
         $schoolClass->delete();
         $this->audit->record('class_deleted', 'Administration', "Class {$schoolClass->name} deleted", null, $old, null);
 

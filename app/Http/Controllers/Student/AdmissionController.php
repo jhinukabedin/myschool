@@ -15,6 +15,7 @@ use App\Services\AccountProvisioningService;
 use App\Services\AuditLogService;
 use App\Services\DocumentNumberService;
 use App\Services\FeeAssignmentService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,12 +42,69 @@ class AdmissionController extends Controller
             'session' => $session,
             'sessions' => AcademicSession::orderByDesc('start_date')->get(),
             'classes' => SchoolClass::with('sections')->ordered()->get(),
-            'sections' => Section::orderBy('name')->get(),
+            'sections' => Section::ordered()->get(),
             'structures' => $session
                 ? FeeStructure::with('items')->where('academic_session_id', $session->id)->where('status', 'active')->get()
                 : collect(),
             'enquiry' => $enquiry,
+            'preselectedSibling' => $request->filled('sibling')
+                ? Student::query()->with('guardians')->whereKey($request->integer('sibling'))->first()
+                : null,
         ]);
+    }
+
+    /**
+     * JSON search used by the admission form's sibling picker.
+     * Returns up to 10 active students matching name, admission no or student code,
+     * together with their primary guardian so the form can auto-fill guardian fields.
+     */
+    public function searchSiblings(Request $request): JsonResponse
+    {
+        $term = trim((string) $request->query('q'));
+
+        if (mb_strlen($term) < 2) {
+            return response()->json([]);
+        }
+
+        $session = current_session();
+
+        $students = Student::query()
+            ->with(['guardians' => fn ($query) => $query->where('is_primary', true)])
+            ->where('status', 'active')
+            ->where(function ($query) use ($term) {
+                $query->where('first_name', 'like', "%{$term}%")
+                    ->orWhere('last_name', 'like', "%{$term}%")
+                    ->orWhere('name_bn', 'like', "%{$term}%")
+                    ->orWhere('admission_no', 'like', "%{$term}%")
+                    ->orWhere('student_code', 'like', "%{$term}%");
+            })
+            ->orderBy('first_name')
+            ->limit(10)
+            ->get()
+            ->map(function (Student $student) use ($session) {
+                $enrollment = $session ? $student->enrollmentFor($session->id) : $student->enrollments()->first();
+                $guardian = $student->guardians->first();
+
+                return [
+                    'id' => $student->id,
+                    'name' => $student->full_name,
+                    'admission_no' => $student->admission_no,
+                    'student_code' => $student->student_code,
+                    'class' => $enrollment?->class?->name,
+                    'section' => $enrollment?->section?->name,
+                    'roll' => $enrollment?->roll_no,
+                    'guardian' => $guardian ? [
+                        'name' => $guardian->name,
+                        'relation' => $guardian->relation,
+                        'phone' => $guardian->phone,
+                        'email' => $guardian->email,
+                        'occupation' => $guardian->occupation,
+                        'address' => $guardian->address,
+                    ] : null,
+                ];
+            });
+
+        return response()->json($students);
     }
 
     public function store(StoreStudentRequest $request): RedirectResponse
@@ -82,7 +140,9 @@ class AdmissionController extends Controller
             $student = Student::create([
                 'admission_no' => $this->numbers->admissionNumber($admissionYear),
                 'first_name' => $data['first_name'],
-                'last_name' => $data['last_name'],
+                'last_name' => $data['last_name'] ?? '',
+                'name_bn' => $data['name_bn'] ?? null,
+                'has_sibling' => $data['has_sibling'] ?? false,
                 'gender' => $data['gender'],
                 'date_of_birth' => $data['date_of_birth'],
                 'blood_group' => $data['blood_group'] ?? null,
@@ -100,6 +160,15 @@ class AdmissionController extends Controller
                 'medical_notes' => $data['medical_notes'] ?? null,
                 'status' => 'active',
             ]);
+
+            // Link the sibling relationship both ways so family records stay connected.
+            if (! empty($data['has_sibling']) && ! empty($data['sibling_student_id'])) {
+                $sibling = Student::find($data['sibling_student_id']);
+
+                if ($sibling && $sibling->id !== $student->id) {
+                    $student->update(['sibling_student_id' => $sibling->id]);
+                }
+            }
 
             $guardian = $student->guardians()->create([
                 'name' => $data['guardian_name'],
@@ -131,7 +200,6 @@ class AdmissionController extends Controller
             ]);
 
             $accounts = $this->accounts->provisionForAdmission($student, $enrollment, $guardian, $request->user());
-            $student->load('portalLink.user');
 
             if ($structure) {
                 $this->fees->assignStructure(

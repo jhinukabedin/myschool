@@ -11,7 +11,14 @@ class Section extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'numeric_level'];
+
+    protected $casts = ['numeric_level' => 'integer'];
+
+    public function scopeOrdered($query)
+    {
+        return $query->orderBy('numeric_level')->orderBy('name');
+    }
 
     public function classes(): BelongsToMany
     {

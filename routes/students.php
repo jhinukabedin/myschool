@@ -18,6 +18,8 @@ Route::prefix('admission-enquiries')->name('enquiries.')->group(function () {
 
 Route::get('/admissions/create', [AdmissionController::class, 'create'])
     ->middleware('permission:students.create')->name('admissions.create');
+Route::get('/admissions/sibling-search', [AdmissionController::class, 'searchSiblings'])
+    ->middleware('permission:students.create')->name('admissions.sibling-search');
 Route::post('/admissions', [AdmissionController::class, 'store'])
     ->middleware('permission:students.create')->name('admissions.store');
 

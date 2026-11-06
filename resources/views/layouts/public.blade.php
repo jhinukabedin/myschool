@@ -12,7 +12,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('website/style.css') }}?v={{ @filemtime(public_path('website/style.css')) ?: '1' }}">
+    <link rel="stylesheet" href="{{ asset('website/style.css') }}?v={{ @filemtime(public_path('website/style.css')) ?: '1' }}" data-turbo-track="reload">
+    <script src="{{ asset('vendor/turbo/turbo.js') }}" data-turbo-track="reload" defer></script>
+    <script src="{{ asset('website/script.js') }}?v={{ @filemtime(public_path('website/script.js')) ?: '1' }}" data-turbo-track="reload" defer></script>
     @stack('head')
 </head>
 @php
@@ -20,7 +22,7 @@
         ? (preg_match('#^(https?://|mailto:|tel:)#i', $siteHeaderCtaUrl) ? $siteHeaderCtaUrl : url($siteHeaderCtaUrl))
         : '';
 @endphp
-<body class="header-style-{{ $siteHeaderStyle }} footer-style-{{ $siteFooterStyle }} theme-{{ $siteTheme }}">
+<body class="header-style-{{ $siteHeaderStyle }} footer-style-{{ $siteFooterStyle }} theme-{{ $siteTheme }}" data-turbo-prefetch="true">
 <header>
     @if ($siteShowTopbar)
     <div class="topbar"><div class="container topbar-inner">
@@ -143,8 +145,11 @@
         @endif
     </span><span><strong>{{ $siteNameBn }}</strong><small>{{ $siteNameEn }}</small></span><button class="drawer-close" aria-label="বন্ধ করুন">×</button></div>
     <nav class="drawer-nav">
-        @if ($headerMenu && $headerMenu->rootItems->isNotEmpty())
-            @foreach ($headerMenu->rootItems as $item)
+        @php
+            $drawerMenu = ($sidebarMenu && $sidebarMenu->rootItems->isNotEmpty()) ? $sidebarMenu : $headerMenu;
+        @endphp
+        @if ($drawerMenu && $drawerMenu->rootItems->isNotEmpty())
+            @foreach ($drawerMenu->rootItems as $item)
                 <div class="drawer-group">
                     <a href="{{ $item->href }}" @if ($item->target === '_blank') target="_blank" rel="noopener" @endif><small>{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</small>{{ $item->title }}</a>
                     @if ($item->children->isNotEmpty())
@@ -262,7 +267,6 @@
     </div></div>
 </footer>
 
-<script src="{{ asset('website/script.js') }}?v={{ @filemtime(public_path('website/script.js')) ?: '1' }}"></script>
 @stack('scripts')
 </body>
 </html>

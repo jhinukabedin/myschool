@@ -24,7 +24,7 @@
 
         <div class="receipt-grid">
             <div><div class="receipt-label">Student</div><div class="receipt-value">{{ $student->full_name }}</div></div>
-            <div><div class="receipt-label">Admission No</div><div class="receipt-value">{{ $student->admission_no }}</div></div>
+            <div><div class="receipt-label">Student ID</div><div class="receipt-value">{{ $student->student_code }}</div></div>
             <div><div class="receipt-label">Class</div><div class="receipt-value">{{ $enrollment->class?->name }}</div></div>
             <div><div class="receipt-label">Section / Roll</div><div class="receipt-value">{{ $enrollment->section?->name ?? '—' }} / {{ $enrollment->roll_no ?? '—' }}</div></div>
             <div><div class="receipt-label">Published</div><div class="receipt-value">{{ $published_at?->format('d M Y, h:i A') }}</div></div>

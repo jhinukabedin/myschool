@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Expense extends Model
@@ -22,6 +23,14 @@ class Expense extends Model
             'amount' => 'decimal:2',
             'expense_date' => 'date',
         ];
+    }
+
+    /**
+     * Line items of this expense invoice (multiple purchases per entry).
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(ExpenseItem::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function category(): BelongsTo

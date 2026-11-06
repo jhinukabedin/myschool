@@ -37,7 +37,7 @@
                             <td class="mono" style="font-size:11px">{{ $reversal->payment?->receipt_no }}</td>
                             <td>
                                 <div class="cell-title">{{ $reversal->payment?->student?->full_name }}</div>
-                                <div class="cell-sub">{{ $reversal->payment?->student?->admission_no }}</div>
+                                <div class="cell-sub">Student ID: {{ $reversal->payment?->student?->student_code }}</div>
                             </td>
                             <td><x-badge :color="$reversal->type === 'refund' ? 'info' : 'danger'">{{ ucfirst($reversal->type) }}</x-badge></td>
                             <td class="num">{{ money($reversal->amount) }}</td>

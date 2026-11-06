@@ -1,14 +1,22 @@
 @php
     $portalUser = auth()->user();
     $portalRole = $portalUser?->role?->slug;
-    $portalName = match ($portalRole) {
+    $isStaffPortal = request()->routeIs('staff-portal.*');
+    $portalName = $isStaffPortal ? 'Staff Portal' : match ($portalRole) {
         'student' => 'Student Portal',
         'parent' => 'Parent Portal',
         'teacher' => 'Teacher Portal',
         default => 'School Portal',
     };
-    $isStudent = $portalRole === 'student';
-    $portalNav = match ($portalRole) {
+    $isStudent = ! $isStaffPortal && $portalRole === 'student';
+    $portalNav = $isStaffPortal ? [
+        ['label' => 'Dashboard', 'route' => 'staff-portal.dashboard', 'active' => 'staff-portal.dashboard'],
+        ['label' => 'My Profile', 'route' => 'staff-portal.profile', 'active' => 'staff-portal.profile'],
+        ['label' => 'Leave', 'route' => 'staff-portal.leaves.index', 'active' => 'staff-portal.leaves.*'],
+        ['label' => 'Payslips', 'route' => 'staff-portal.payslips.index', 'active' => 'staff-portal.payslips.*'],
+        ['label' => 'Payment History', 'route' => 'staff-portal.payments.index', 'active' => 'staff-portal.payments.*'],
+        ['label' => 'Change Password', 'route' => 'password.change', 'active' => 'password.*'],
+    ] : match ($portalRole) {
         'student' => [
             ['label' => 'Dashboard', 'route' => 'student.dashboard', 'active' => 'student.dashboard'],
             ['label' => 'My Profile', 'route' => 'student.profile', 'active' => 'student.profile'],
@@ -58,6 +66,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('portal/style.css') }}">
+    <style>
+        .report-print-footer { display:none; }
+        @media print {
+            @page { margin-bottom:18mm; }
+            .report-print-footer { position:fixed; right:0; bottom:0; left:0; z-index:1000; display:flex !important; justify-content:space-between; align-items:center; gap:12px; width:100%; padding:5px 0 0; border-top:1px solid #cbd1dc; background:#fff; color:#647083; font-size:8pt; line-height:1.35; }
+            .report-print-footer strong { color:#27354a; }
+            .report-print-footer a { color:#425c80; text-decoration:none; }
+            .report-print-footer-contact { display:flex; gap:10px; }
+            .report-print-footer-pages::after { content:"Page " counter(page) " of " counter(pages); }
+        }
+    </style>
     @stack('head')
 </head>
 <body class="{{ $isStudent ? 'portal-student' : 'portal-classic' }}">
@@ -146,6 +165,7 @@
         <a href="{{ route('website.privacy') }}">Privacy</a>
     </div>
 </footer>
+@include('layouts.partials.print-developer-footer')
 @stack('scripts')
 </body>
 </html>

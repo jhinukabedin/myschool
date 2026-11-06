@@ -11,6 +11,8 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SchoolClassController;
 use App\Http\Controllers\Admin\SectionController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SubscriptionController;
+use App\Http\Controllers\Admin\UserAccessController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\WebsiteAdminController;
 use App\Http\Controllers\Admin\WebsiteContentController;
@@ -19,6 +21,19 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/admin', [AdminController::class, 'index'])
     ->middleware('permission:settings.view')->name('admin.index');
+
+Route::prefix('admin/access')->name('access.')->middleware('permission:access.manage')->group(function () {
+    Route::get('/', [UserAccessController::class, 'index'])->name('index');
+    Route::put('/{user}', [UserAccessController::class, 'update'])->name('update');
+    Route::post('/{user}/template', [UserAccessController::class, 'template'])->name('template');
+});
+
+Route::get('/admin/subscription', [SubscriptionController::class, 'index'])
+    ->middleware('permission:subscription.view')->name('subscription.index');
+Route::put('/admin/subscription', [SubscriptionController::class, 'update'])
+    ->middleware('permission:subscription.manage')->name('subscription.update');
+Route::put('/admin/subscription/feature-access', [SubscriptionController::class, 'updateGrants'])
+    ->middleware('permission:subscription.manage')->name('subscription.grants.update');
 
 Route::prefix('sessions')->name('sessions.')->middleware('permission:academics.manage')->group(function () {
     Route::get('/', [AcademicSessionController::class, 'index'])->name('index');
@@ -54,6 +69,9 @@ Route::prefix('users')->name('users.')->middleware('permission:users.manage')->g
 
 Route::prefix('roles')->name('roles.')->middleware('permission:users.manage')->group(function () {
     Route::get('/', [RoleController::class, 'index'])->name('index');
+    Route::post('/', [RoleController::class, 'store'])->name('store');
+    Route::put('/{role}/details', [RoleController::class, 'updateDetails'])->name('details.update');
+    Route::delete('/{role}', [RoleController::class, 'destroy'])->name('destroy');
     Route::put('/{role}', [RoleController::class, 'update'])->name('update');
 });
 
@@ -102,6 +120,11 @@ Route::prefix('admin/website')->name('website-admin.')->middleware('permission:w
 
     // Sidebar
     Route::get('/sidebar', [WebsiteAdminController::class, 'sidebar'])->name('sidebar');
+
+    // Public result search settings.
+    Route::get('/result-search', [WebsiteAdminController::class, 'resultSearch'])->name('result-search');
+    Route::put('/result-search', [WebsiteAdminController::class, 'updateResultSearch'])
+        ->middleware('permission:website.manage')->name('result-search.update');
 
     // Create a new CMS page (reuses the existing content form).
     Route::get('/create-page', fn () => redirect()->route('website-content.create', ['type' => 'page']))

@@ -3,10 +3,9 @@
 @section('title', 'Sections')
 
 @section('content')
-    <x-page-header eyebrow="Admin" title="Sections" subtitle="Sections are shared across classes. A section with enrolments cannot be deleted.">
+    <x-page-header eyebrow="Academic management" title="Sections" subtitle="Sections are shared across classes and ordered by numeric level. A section with enrolments cannot be deleted.">
         <x-slot:actions>
-            <x-button :href="route('classes.index')" variant="secondary" icon="building">Classes</x-button>
-            <x-button :href="route('admin.index')" variant="ghost" icon="arrow-left">Administration</x-button>
+            <x-button :href="route('classes.index')" variant="ghost" icon="building">Manage classes</x-button>
         </x-slot:actions>
     </x-page-header>
 
@@ -19,6 +18,7 @@
                 <div class="form-section">
                     <div class="stack">
                         <x-input name="name" label="Section name" required placeholder="e.g. C" maxlength="40" />
+                        <x-input name="numeric_level" label="Numeric level" type="number" min="0" max="99" value="0" required help="Controls section ordering in class and student forms." />
                         <x-button type="submit" variant="primary" icon="plus" class="btn-block">Add section</x-button>
                     </div>
                 </div>
@@ -29,11 +29,12 @@
             <div class="card-header"><div><h3 class="card-title">Sections</h3><p class="card-sub">{{ $sections->count() }} section(s)</p></div></div>
             <div class="table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>Section</th><th class="num">Classes</th><th class="num">Enrolments</th><th class="actions">Actions</th></tr></thead>
+                    <thead><tr><th>Section</th><th class="num">Level</th><th class="num">Classes</th><th class="num">Enrolments</th><th class="actions">Actions</th></tr></thead>
                     <tbody>
                         @forelse ($sections as $section)
                             <tr>
                                 <td class="cell-title">{{ $section->name }}</td>
+                                <td class="num">{{ $section->numeric_level }}</td>
                                 <td class="num">{{ $section->classes_count }}</td>
                                 <td class="num">{{ $section->enrollments_count }}</td>
                                 <td class="actions">
@@ -48,7 +49,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="table-empty">No sections have been created.</td></tr>
+                            <tr><td colspan="5" class="table-empty">No sections have been created.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -63,6 +64,7 @@
                 @method('PUT')
                 <div class="stack">
                     <x-input name="name" label="Section name" :value="$section->name" required maxlength="40" />
+                    <x-input name="numeric_level" label="Numeric level" type="number" min="0" max="99" :value="$section->numeric_level" required />
                     <x-button type="submit" variant="primary" icon="save" class="btn-block">Save section</x-button>
                 </div>
             </form>

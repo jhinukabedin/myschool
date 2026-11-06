@@ -19,7 +19,7 @@
         </div>
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Student</th><th>Admission No</th><th>Last class</th><th>Session</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+                <thead><tr><th>Student</th><th>Student ID</th><th>Last class</th><th>Session</th><th>Status</th><th>Updated</th><th></th></tr></thead>
                 <tbody>
                     @forelse ($students as $student)
                         @php($enrollment = $student->enrollments->sortByDesc('id')->first())
@@ -30,7 +30,7 @@
                                     <div><div class="cell-title">{{ $student->full_name }}</div><div class="cell-sub">{{ $student->primaryGuardian()?->phone }}</div></div>
                                 </div>
                             </td>
-                            <td class="mono" style="font-size:11px">{{ $student->admission_no }}</td>
+                            <td class="mono" style="font-size:11px">{{ $student->student_code }}</td>
                             <td>{{ $enrollment?->class?->name ?? '—' }}</td>
                             <td>{{ $enrollment?->academicSession?->name ?? '—' }}</td>
                             <td><x-badge :color="$student->status_color">{{ $student->status_label }}</x-badge></td>

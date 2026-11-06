@@ -14,6 +14,7 @@
             <a class="btn btn-outline" href="{{ route('website.news') }}">← সব সংবাদ</a>
         </article>
         <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
+            @include('website._sidebar')
             <div class="card contact-card">
                 <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">আরও সংবাদ</h3>
                 @forelse ($related as $other)

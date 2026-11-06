@@ -16,6 +16,14 @@
             @can('payroll.view')
                 <x-button :href="route('payroll.index')" variant="primary" icon="banknote">Salary management</x-button>
             @endcan
+            @can('staff.manage')
+                <form method="POST" action="{{ route('staff.destroy', $staffMember) }}" style="display:inline"
+                      onsubmit="return confirm({{ \Illuminate\Support\Js::from('Archive '.$staffMember->full_name.'? Payroll history is preserved and the login is deactivated.') }})">
+                    @csrf
+                    @method('DELETE')
+                    <x-button type="submit" variant="ghost" icon="archive">Archive</x-button>
+                </form>
+            @endcan
         </x-slot:actions>
     </x-page-header>
 
@@ -45,8 +53,34 @@
                             <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">{{ $staffMember->address ?? '—' }}</span></div>
                             <div class="detail-row"><span class="detail-label">Department</span><span class="detail-value">{{ $staffMember->department?->name ?? '—' }}</span></div>
                             <div class="detail-row"><span class="detail-label">Designation</span><span class="detail-value">{{ $staffMember->designation?->name ?? '—' }}</span></div>
+                            <div class="detail-row"><span class="detail-label">Category</span><span class="detail-value">{{ $staffMember->category_label }}</span></div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><div><h3 class="card-title">Qualification</h3><p class="card-sub">Certificates and academic background</p></div></div>
+                <div class="card-body">
+                    @if ($staffMember->qualifications->isEmpty())
+                        <p class="muted" style="margin:0;font-size:12px">No qualifications recorded yet. Add them from “Edit profile”.</p>
+                    @else
+                        <div class="table-wrap">
+                            <table class="data-table">
+                                <thead><tr><th>Exam / degree</th><th>Institution</th><th class="num">Year</th><th>Result</th></tr></thead>
+                                <tbody>
+                                    @foreach ($staffMember->qualifications as $qualification)
+                                        <tr>
+                                            <td class="cell-title">{{ $qualification->exam_name }}</td>
+                                            <td>{{ $qualification->institution ?? '—' }}</td>
+                                            <td class="num">{{ $qualification->passing_year ?? '—' }}</td>
+                                            <td>{{ $qualification->result ?? '—' }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -111,6 +145,25 @@
                         </div>
                     @else
                         <p class="muted" style="font-size:12px;margin:0">No salary structure exists. Payroll cannot be generated until one is added.</p>
+                    @endif
+
+                    @if ($staffMember->salaryStructures->count() > 1)
+                        <div class="divider" style="margin:14px 0"></div>
+                        <div class="form-section-title" style="font-size:12px">{{ __('Structure history') }}</div>
+                        <div class="table-wrap" style="max-height:180px;overflow:auto">
+                            <table class="data-table" style="font-size:11.5px">
+                                <thead><tr><th>{{ __('Effective from') }}</th><th class="num">{{ __('Basic') }}</th><th class="num">{{ __('Net') }}</th></tr></thead>
+                                <tbody>
+                                    @foreach ($staffMember->salaryStructures->sortByDesc('effective_from') as $structure)
+                                        <tr>
+                                            <td>{{ $structure->effective_from?->format('d M Y') }}</td>
+                                            <td class="num">{{ money($structure->basic_salary) }}</td>
+                                            <td class="num">{{ money($structure->net_salary) }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     @endif
                 </div>
             </div>

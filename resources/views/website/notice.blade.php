@@ -13,6 +13,7 @@
             <a class="btn btn-outline" href="{{ route('website.notices') }}">← সব নোটিশ</a>
         </article>
         <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
+            @include('website._sidebar')
             <div class="card contact-card">
                 <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">সাম্প্রতিক নোটিশ</h3>
                 @forelse ($related as $item)

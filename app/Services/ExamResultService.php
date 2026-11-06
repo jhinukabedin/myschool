@@ -100,6 +100,7 @@ class ExamResultService
         }
 
         $rule = $this->gradeFor($percentage, $rules ?? $this->rulesForExam($examSubject->examination));
+        $componentPassFailed = $this->componentPassFailed($examSubject, $componentMarks);
         $blocked = in_array($specialStatus, ['withheld', 'incomplete', 'disqualified'], true);
         $exempt = $specialStatus === 'exempt';
 
@@ -116,11 +117,12 @@ class ExamResultService
                 $absent => 'F',
                 $exempt => 'Exempt',
                 $blocked => strtoupper((string) $specialStatus),
-                default => $rule?->grade,
+                default => $componentPassFailed ? 'F' : $rule?->grade,
             },
             'grade_point' => match (true) {
                 $exempt => null,
                 $absent, $blocked => 0,
+                $componentPassFailed => 0,
                 default => $rule?->grade_point,
             },
             'entered_by' => $mark->entered_by ?? $actor->id,
@@ -229,7 +231,8 @@ class ExamResultService
 
             $obtained = $isAbsent ? null : (float) $mark->marks_obtained;
             $blocked = in_array($special, ['withheld', 'incomplete', 'disqualified'], true);
-            $passed = ! $isAbsent && ! $blocked && $obtained >= (float) $examSubject->pass_marks;
+            $componentPassFailed = $this->componentPassFailed($examSubject, $mark->component_marks);
+            $passed = ! $isAbsent && ! $blocked && ! $componentPassFailed && $obtained >= (float) $examSubject->pass_marks;
             $point = $isAbsent || $blocked ? 0.0 : (float) $mark->grade_point;
 
             if (! $passed) {
@@ -248,7 +251,7 @@ class ExamResultService
                 'obtained' => $obtained,
                 'full_marks' => (float) $examSubject->full_marks,
                 'pass_marks' => (float) $examSubject->pass_marks,
-                'grade' => $special ? strtoupper($special) : ($mark->grade ?? '—'),
+                'grade' => $special ? strtoupper($special) : ($componentPassFailed ? 'F' : ($mark->grade ?? '—')),
                 'grade_point' => $point,
                 'absent' => $isAbsent,
                 'exempt' => false,
@@ -395,11 +398,29 @@ class ExamResultService
                 return [
                     'name' => $component['name'] ?? 'Component',
                     'full_marks' => (float) ($component['full_marks'] ?? 0),
+                    'pass_marks' => (float) ($component['pass_marks'] ?? 0),
+                    'requires_pass' => (bool) ($component['requires_pass'] ?? false),
                     'obtained' => $obtained,
                 ];
             })
             ->values()
             ->all();
+    }
+
+    private function componentPassFailed(ExaminationSubject $examSubject, ?array $componentMarks): bool
+    {
+        foreach ($examSubject->components ?? [] as $index => $component) {
+            if (! ($component['requires_pass'] ?? false)) {
+                continue;
+            }
+
+            $obtained = $componentMarks[$index] ?? null;
+            if ($obtained === null || (float) $obtained < (float) ($component['pass_marks'] ?? 0)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -415,6 +436,7 @@ class ExamResultService
         return [
             'student_id' => $result['student']?->id,
             'student_name' => $result['student']?->full_name,
+            'student_code' => $result['student']?->student_code,
             'admission_no' => $result['student']?->admission_no,
             'enrollment_id' => $enrollment?->id,
             'class_id' => $enrollment?->class_id,

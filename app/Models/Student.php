@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
@@ -13,9 +14,10 @@ class Student extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'admission_no', 'student_code', 'first_name', 'last_name', 'gender', 'date_of_birth', 'blood_group',
+        'admission_no', 'student_code', 'first_name', 'last_name', 'name_bn', 'gender', 'date_of_birth', 'blood_group',
         'religion', 'nationality', 'phone', 'email', 'address', 'city', 'state', 'postal_code',
         'photo_path', 'admission_date', 'previous_school', 'medical_notes', 'status',
+        'has_sibling', 'sibling_student_id',
     ];
 
     protected function casts(): array
@@ -23,12 +25,23 @@ class Student extends Model
         return [
             'date_of_birth' => 'date',
             'admission_date' => 'date',
+            'has_sibling' => 'boolean',
         ];
     }
 
     public function guardians(): HasMany
     {
         return $this->hasMany(StudentGuardian::class);
+    }
+
+    public function siblingStudent(): BelongsTo
+    {
+        return $this->belongsTo(Student::class, 'sibling_student_id');
+    }
+
+    public function siblings(): HasMany
+    {
+        return $this->hasMany(Student::class, 'sibling_student_id');
     }
 
     public function portalLink()
@@ -78,6 +91,10 @@ class Student extends Model
 
     public function getFullNameAttribute(): string
     {
+        if (filled($this->name_bn) && blank($this->first_name)) {
+            return $this->name_bn;
+        }
+
         return trim($this->first_name.' '.$this->last_name);
     }
 

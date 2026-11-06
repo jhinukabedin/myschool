@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ContactMessage;
+use App\Models\Examination;
 use App\Models\Media;
 use App\Models\Notice;
 use App\Models\SchoolSetting;
@@ -60,6 +61,11 @@ class WebsiteAdminController extends Controller
         'website_social_links' => '',
         'website_map_embed' => '',
         'website_home_sections' => '',
+        'website_result_search_enabled' => '1',
+        'website_result_title' => 'রেজাল্ট',
+        'website_result_subtitle' => 'শিক্ষার্থী আইডি দিয়ে ফলাফল খুঁজুন',
+        'website_result_help' => 'শিক্ষার্থীর আইডি নম্বর লিখুন (যেমন: 2601001)।',
+        'website_result_empty_message' => 'এই মুহূর্তে কোনো রেজাল্ট পাবলিশ হয়নি',
     ];
 
     public const HEADER_STYLES = [
@@ -484,6 +490,66 @@ class WebsiteAdminController extends Controller
         return view('admin.website.sidebar', [
             'menu' => WebsiteMenu::query()->where('location', 'sidebar')->with(['rootItems'])->first(),
         ]);
+    }
+
+    /**
+     * Public result search settings and publishing status.
+     */
+    public function resultSearch(): View
+    {
+        $v = fn (string $key, mixed $default = null) => old($key, school_setting($key, $default));
+
+        $exams = Examination::query()
+            ->where('status', 'published')
+            ->whereNotNull('result_published_at')
+            ->with('academicSession')
+            ->withCount('resultSnapshots')
+            ->orderByDesc('result_published_at')
+            ->get();
+
+        return view('admin.website.result-search', [
+            'settings' => [
+                'website_result_search_enabled' => $v('website_result_search_enabled', '1'),
+                'website_result_title' => $v('website_result_title', 'রেজাল্ট'),
+                'website_result_subtitle' => $v('website_result_subtitle', 'শিক্ষার্থী আইডি দিয়ে ফলাফল খুঁজুন'),
+                'website_result_help' => $v('website_result_help', 'শিক্ষার্থীর আইডি নম্বর লিখুন (যেমন: 2601001)।'),
+                'website_result_empty_message' => $v('website_result_empty_message', 'এই মুহূর্তে কোনো রেজাল্ট পাবলিশ হয়নি'),
+            ],
+            'exams' => $exams,
+            'publishedCount' => $exams->sum('result_snapshots_count'),
+        ]);
+    }
+
+    public function updateResultSearch(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'website_result_search_enabled' => ['nullable', 'boolean'],
+            'website_result_title' => ['required', 'string', 'max:100'],
+            'website_result_subtitle' => ['nullable', 'string', 'max:200'],
+            'website_result_help' => ['nullable', 'string', 'max:250'],
+            'website_result_empty_message' => ['required', 'string', 'max:200'],
+        ]);
+
+        $data['website_result_search_enabled'] = $request->boolean('website_result_search_enabled') ? '1' : '0';
+
+        $before = collect(array_keys($data))
+            ->mapWithKeys(fn (string $key) => [$key => school_setting($key)])
+            ->all();
+
+        foreach ($data as $key => $value) {
+            SchoolSetting::put($key, $value, 'website');
+        }
+
+        $this->audit->record(
+            'website_result_search_updated',
+            'Website',
+            'Public result search settings updated',
+            null,
+            $before,
+            $data
+        );
+
+        return back()->with('success', 'Result search settings saved.');
     }
 
     private function deleteLogoIfUnused(string $path): void

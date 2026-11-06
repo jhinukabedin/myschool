@@ -51,7 +51,7 @@
                                     <td><input class="promote-check" type="checkbox" name="only_student_ids[]" value="{{ $enrollment->student_id }}" checked></td>
                                     <td>
                                         <div class="cell-title">{{ $enrollment->student?->full_name }}</div>
-                                        <div class="cell-sub">{{ $enrollment->student?->admission_no }}</div>
+                                        <div class="cell-sub">Student ID: {{ $enrollment->student?->student_code }}</div>
                                     </td>
                                     <td>{{ $enrollment->section?->name }}</td>
                                     <td>{{ $enrollment->roll_no }}</td>

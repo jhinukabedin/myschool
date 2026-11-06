@@ -21,7 +21,10 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')->name('logout');
 
-Route::middleware(['auth', 'session.resolve'])->group(function () {
+// Language switcher (available to guests and signed-in users).
+Route::get('/language/{locale}', \App\Http\Controllers\LocaleController::class)->name('language.switch');
+
+Route::middleware(['auth', 'session.resolve', \App\Http\Middleware\EnsureModuleEnabled::class])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->middleware('permission:dashboard.view')
         ->name('dashboard');

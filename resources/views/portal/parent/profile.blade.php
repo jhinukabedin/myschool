@@ -34,7 +34,7 @@
                     <div class="list-item">
                         <div>
                             <strong>{{ $child->full_name }}</strong>
-                            <small>{{ $child->admission_no }} · {{ $child->status_label }}</small>
+                            <small>Student ID: {{ $child->student_code }} · {{ $child->status_label }}</small>
                             @php($latest = $child->enrollments->sortByDesc('academic_session_id')->first())
                             @if ($latest)
                                 <small>{{ $latest->class?->name }} · Section {{ $latest->section?->name ?? '—' }} · {{ $latest->academicSession?->name }}</small>

@@ -24,12 +24,15 @@
                 <p>আপনি আপনার সংরক্ষিত তথ্য সম্পর্কে জানতে, সংশোধন করতে বা মুছে ফেলার অনুরোধ করতে পারেন। যোগাযোগ করুন: {{ $siteEmail ?: $sitePhone }}</p>
             @endif
         </article>
-        <aside class="card contact-card">
-            <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">যোগাযোগ</h3>
-            @if ($siteAddress)<p>{{ $siteAddress }}</p>@endif
-            @if ($sitePhone)<p>ফোন: {{ $sitePhone }}</p>@endif
-            @if ($siteEmail)<p>ইমেইল: {{ $siteEmail }}</p>@endif
-            <a href="{{ route('website.contact') }}">যোগাযোগ ফর্ম →</a>
+        <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
+            @include('website._sidebar')
+            <div class="card contact-card">
+                <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">যোগাযোগ</h3>
+                @if ($siteAddress)<p>{{ $siteAddress }}</p>@endif
+                @if ($sitePhone)<p>ফোন: {{ $sitePhone }}</p>@endif
+                @if ($siteEmail)<p>ইমেইল: {{ $siteEmail }}</p>@endif
+                <a href="{{ route('website.contact') }}">যোগাযোগ ফর্ম →</a>
+            </div>
         </aside>
     </div></section>
 @endsection

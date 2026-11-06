@@ -135,14 +135,15 @@ class StudentPortalController extends Controller
         $student = $this->portal->studentFor($request->user());
         $session = current_session();
         $routine = $this->portal->classRoutine($student, $session);
+        $enrollment = $this->portal->enrollment($student, $session);
 
         return view('portal.student.routine', [
             'student' => $student,
             'session' => $session,
-            'enrollment' => $this->portal->enrollment($student, $session),
+            'enrollment' => $enrollment,
             'routine' => $routine,
             'days' => $this->schedule->workingDays(),
-            'slots' => $this->schedule->activeSlots(),
+            'slots' => $this->schedule->activeSlots($enrollment?->class_id),
             'entryMap' => $routine ? $this->schedule->entryMap($routine) : collect(),
         ]);
     }

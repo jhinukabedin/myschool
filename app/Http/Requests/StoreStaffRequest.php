@@ -31,10 +31,17 @@ class StoreStaffRequest extends FormRequest
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'department_id' => ['nullable', 'exists:departments,id'],
             'designation_id' => ['nullable', 'exists:designations,id'],
+            'category' => ['required', Rule::in(['academic', 'non_academic'])],
             'joining_date' => ['required', 'date'],
             'employment_type' => ['required', Rule::in(['full_time', 'part_time', 'contract'])],
             'status' => ['required', Rule::in(['active', 'inactive', 'resigned'])],
             'basic_salary' => ['required', 'numeric', 'min:0', 'max:9999999'],
+
+            'qualifications' => ['nullable', 'array'],
+            'qualifications.*.exam_name' => ['nullable', 'string', 'max:120'],
+            'qualifications.*.institution' => ['nullable', 'string', 'max:160'],
+            'qualifications.*.passing_year' => ['nullable', 'integer', 'min:1950', 'max:'.(now()->year + 1)],
+            'qualifications.*.result' => ['nullable', 'string', 'max:60'],
 
             'house_allowance' => ['nullable', 'numeric', 'min:0'],
             'transport_allowance' => ['nullable', 'numeric', 'min:0'],

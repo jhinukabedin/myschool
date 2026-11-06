@@ -110,7 +110,15 @@
                     @endcan
                     @can('website.menus')
                         <a href="{{ route('website-menus.index') }}" class="sidebar-link" style="border:1px solid var(--border);border-radius:10px;padding:12px">
-                            <x-icon name="menu" :size="17" class="nav-icon" /><span><strong>Menu builder</strong><br><small class="muted">Header, footer and secondary navigation</small></span>
+                            <x-icon name="menu" :size="17" class="nav-icon" /><span><strong>Menu builder</strong><br><small class="muted">Header, footer, sidebar and secondary navigation</small></span>
+                        </a>
+                    @endcan
+                    @can('website.manage')
+                        <a href="{{ route('website-admin.sidebar') }}" class="sidebar-link" style="border:1px solid var(--border);border-radius:10px;padding:12px">
+                            <x-icon name="layout" :size="17" class="nav-icon" /><span><strong>Public sidebar</strong><br><small class="muted">Links shown in the page sidebar and mobile drawer</small></span>
+                        </a>
+                        <a href="{{ route('website-admin.result-search') }}" class="sidebar-link" style="border:1px solid var(--border);border-radius:10px;padding:12px">
+                            <x-icon name="search" :size="17" class="nav-icon" /><span><strong>Result search</strong><br><small class="muted">Publishing status and public result lookup</small></span>
                         </a>
                     @endcan
                     @can('website.media')

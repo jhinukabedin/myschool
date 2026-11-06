@@ -47,7 +47,7 @@
             </div>
             <div class="table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>Expense</th><th>Category</th><th>Date</th><th>Method</th><th class="num">Amount</th><th>Recorded by</th><th class="actions">Actions</th></tr></thead>
+                    <thead><tr><th>Expense</th><th>Category</th><th>Date</th><th>Method</th><th class="num">Items</th><th class="num">Amount</th><th>Recorded by</th><th class="actions">Actions</th></tr></thead>
                     <tbody>
                         @forelse ($expenses as $expense)
                             <tr>
@@ -61,6 +61,9 @@
                                 <td>{{ $expense->category?->name ?? '—' }}</td>
                                 <td>{{ $expense->expense_date?->format('d M Y') }}</td>
                                 <td>{{ ucwords(str_replace('_', ' ', $expense->payment_method)) }}</td>
+                                <td class="num">
+                                    <span class="badge badge-muted" title="{{ $expense->items->pluck('description')->filter()->join(', ') }}">{{ $expense->items_count }}</span>
+                                </td>
                                 <td class="num" style="font-weight:600">{{ money($expense->amount) }}</td>
                                 <td>
                                     <div>{{ $expense->recordedBy?->name ?? 'System' }}</div>
@@ -78,7 +81,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="table-empty">No expenses match the current filters.</td></tr>
+                            <tr><td colspan="8" class="table-empty">No expenses match the current filters.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

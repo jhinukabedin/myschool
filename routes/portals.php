@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\PortalAuthController;
 use App\Http\Controllers\Portal\ParentPortalController;
+use App\Http\Controllers\Portal\StaffPortalController;
 use App\Http\Controllers\Portal\StudentPortalController;
 use Illuminate\Support\Facades\Route;
 
@@ -59,4 +60,23 @@ Route::middleware(['auth', 'session.resolve', 'portal:parent'])
             ->name('attendance.index');
         Route::get('/children/{student}/payments/{payment}/receipt', [ParentPortalController::class, 'receipt'])
             ->name('payments.receipt');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Staff self-service portal
+|--------------------------------------------------------------------------
+| Any active user linked to a staff record can apply for leave, view their
+| payslips and salary payment history, and keep their contact details current.
+*/
+Route::middleware(['auth', 'session.resolve', 'staff.portal'])
+    ->prefix('staff-portal')->name('staff-portal.')->group(function () {
+        Route::get('/dashboard', [StaffPortalController::class, 'dashboard'])->name('dashboard');
+        Route::get('/profile', [StaffPortalController::class, 'profile'])->name('profile');
+        Route::post('/profile', [StaffPortalController::class, 'updateProfile'])->name('profile.update');
+        Route::get('/leaves', [StaffPortalController::class, 'leaves'])->name('leaves.index');
+        Route::post('/leaves', [StaffPortalController::class, 'storeLeave'])->name('leaves.store');
+        Route::get('/payslips', [StaffPortalController::class, 'payslips'])->name('payslips.index');
+        Route::get('/payslips/{payroll}', [StaffPortalController::class, 'payslip'])->name('payslips.show');
+        Route::get('/payments', [StaffPortalController::class, 'payments'])->name('payments.index');
     });

@@ -49,13 +49,7 @@
             @endif
         </article>
         <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
-            <div class="card contact-card">
-                <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">দ্রুত লিংক</h3>
-                <a href="{{ route('website.notices') }}" style="display:block;padding:6px 0">নোটিশ বোর্ড</a>
-                <a href="{{ route('website.events') }}" style="display:block;padding:6px 0">ইভেন্ট</a>
-                <a href="{{ route('website.academics') }}" style="display:block;padding:6px 0">ক্লাস ও বিষয়</a>
-                <a href="{{ route('website.downloads') }}" style="display:block;padding:6px 0">ডাউনলোড</a>
-            </div>
+            @include('website._sidebar')
         </aside>
     </div></section>
 @endsection

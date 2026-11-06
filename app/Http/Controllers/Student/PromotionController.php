@@ -44,7 +44,7 @@ class PromotionController extends Controller
         return view('students.promotion', [
             'sessions' => $sessions,
             'classes' => SchoolClass::ordered()->get(),
-            'sections' => Section::orderBy('name')->get(),
+            'sections' => Section::ordered()->get(),
             'fromSession' => $fromSession,
             'fromClass' => $fromClass,
             'preview' => $preview,

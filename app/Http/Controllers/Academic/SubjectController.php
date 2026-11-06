@@ -7,6 +7,7 @@ use App\Models\Subject;
 use App\Services\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -74,6 +75,37 @@ class SubjectController extends Controller
         $this->audit->record('subject_deleted', 'Academics', "Subject {$subject->name} deleted", $subject, $before, null);
 
         return back()->with('success', 'Subject removed.');
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'subject_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'subject_ids.*' => ['required', 'integer', 'distinct', 'exists:subjects,id'],
+        ]);
+
+        $subjects = Subject::query()->withCount('examinationSubjects')->whereIn('id', $data['subject_ids'])->get();
+        $deletable = $subjects->where('examination_subjects_count', 0);
+        $skipped = $subjects->count() - $deletable->count();
+
+        if ($deletable->isEmpty()) {
+            return back()->with('error', 'The selected subjects are used in examinations and cannot be deleted.');
+        }
+
+        DB::transaction(function () use ($deletable) {
+            foreach ($deletable as $subject) {
+                $before = $subject->getAttributes();
+                $subject->delete();
+                $this->audit->record('subject_deleted', 'Academics', "Subject {$subject->name} deleted in bulk", null, $before, null);
+            }
+        });
+
+        $message = $deletable->count().' subject(s) removed.';
+        if ($skipped > 0) {
+            $message .= " {$skipped} subject(s) used in examinations were kept.";
+        }
+
+        return back()->with('success', $message);
     }
 
     private function rules(?Subject $subject = null): array

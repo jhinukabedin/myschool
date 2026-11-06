@@ -16,13 +16,16 @@ class SectionController extends Controller
     public function index(): View
     {
         return view('admin.sections', [
-            'sections' => Section::withCount(['enrollments', 'classes'])->orderBy('name')->get(),
+            'sections' => Section::withCount(['enrollments', 'classes'])->ordered()->get(),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate(['name' => ['required', 'string', 'max:40', 'unique:sections,name']]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:40', 'unique:sections,name'],
+            'numeric_level' => ['required', 'integer', 'min:0', 'max:99'],
+        ]);
         $section = Section::create($data);
         $this->audit->record('section_created', 'Administration', "Section {$section->name} created", $section, null, $data);
 
@@ -31,7 +34,10 @@ class SectionController extends Controller
 
     public function update(Request $request, Section $section): RedirectResponse
     {
-        $data = $request->validate(['name' => ['required', 'string', 'max:40', 'unique:sections,name,'.$section->id]]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:40', 'unique:sections,name,'.$section->id],
+            'numeric_level' => ['required', 'integer', 'min:0', 'max:99'],
+        ]);
         $before = $section->getAttributes();
         $section->update($data);
         $this->audit->record('section_updated', 'Administration', "Section {$section->name} updated", $section, $before, $data);

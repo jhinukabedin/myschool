@@ -6,6 +6,7 @@
     $selectedClassId = old('class_id', $class?->id);
     $selectedSectionId = old('section_id', $section?->id);
     $summaryMap = collect($summary ?? []);
+    $markedStudentCount = $students->filter(fn ($enrollment) => $records->has($enrollment->student_id))->count();
 @endphp
 
 @section('content')
@@ -24,14 +25,24 @@
         <x-stat-card label="Excused" :value="number_format((int) ($summaryMap['excused'] ?? 0))" icon="shield" tone="student" meta="Approved absence" />
     </div>
 
+    @if ($holiday)
+        <div class="alert alert-info" role="status" style="display:flex;gap:10px;align-items:flex-start">
+            <span class="alert-icon"><x-icon name="calendar" :size="17" /></span>
+            <div>
+                <strong>{{ __('Holiday') }}: {{ $holiday['name'] }}</strong>
+                <div style="font-size:12px;margin-top:2px">{{ __('No attendance is expected on this date. Choose another date or update the academic calendar.') }}</div>
+            </div>
+        </div>
+    @endif
+
     <div class="card">
         <div class="card-header">
             <div><h3 class="card-title">Register</h3><p class="card-sub">Choose a date, class and section to load the roster</p></div>
             <form method="GET" action="{{ route('attendance.index') }}" class="filter-bar" style="margin:0">
-                <div class="field"><label class="field-label" for="date">Date</label><input class="input" id="date" type="date" name="date" value="{{ $date }}"></div>
+                <div class="field"><label class="field-label" for="date">Date</label><input class="input" id="date" type="date" name="date" value="{{ $date }}" max="{{ now()->toDateString() }}"></div>
                 <div class="field">
                     <label class="field-label" for="class_id">Class</label>
-                    <select class="select" id="class_id" name="class_id">
+                    <select class="select" id="class_id" name="class_id" onchange="document.getElementById('section_id').value=''; this.form.requestSubmit()">
                         <option value="">Select class</option>
                         @foreach ($classes as $classOption)
                             <option value="{{ $classOption->id }}" @selected((string) $selectedClassId === (string) $classOption->id)>{{ $classOption->name }}</option>
@@ -40,8 +51,8 @@
                 </div>
                 <div class="field">
                     <label class="field-label" for="section_id">Section</label>
-                    <select class="select" id="section_id" name="section_id">
-                        <option value="">Select section</option>
+                    <select class="select" id="section_id" name="section_id" @disabled(! $class)>
+                        <option value="">{{ $class ? 'Select section' : 'Choose a class first' }}</option>
                         @foreach ($sections as $sectionOption)
                             <option value="{{ $sectionOption->id }}" @selected((string) $selectedSectionId === (string) $sectionOption->id)>{{ $sectionOption->name }}</option>
                         @endforeach
@@ -61,7 +72,7 @@
             <x-empty icon="users" title="No active students" message="There are no active enrolments for this class and section in the current session." />
         </div>
     @else
-        <form method="POST" action="{{ route('attendance.store') }}" x-data>
+        <form method="POST" action="{{ route('attendance.store') }}" x-data="{ studentSearch: '' }">
             @csrf
             <input type="hidden" name="date" value="{{ $date }}">
             <input type="hidden" name="class_id" value="{{ $class->id }}">
@@ -71,7 +82,11 @@
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">{{ $class->name }} · Section {{ $section->name }}</h3>
-                        <p class="card-sub">{{ $students->count() }} student(s) · {{ \Illuminate\Support\Carbon::parse($date)->format('l, d M Y') }}</p>
+                        <p class="card-sub">{{ $students->count() }} students · {{ $markedStudentCount }} marked · {{ \Illuminate\Support\Carbon::parse($date)->format('l, d M Y') }}</p>
+                    </div>
+                    <div class="field" style="margin-left:auto;min-width:190px;max-width:260px">
+                        <label class="field-label" for="student-search">Find a student</label>
+                        <input class="input" id="student-search" type="search" x-model="studentSearch" placeholder="Name or admission no">
                     </div>
                     @can('attendance.manage')
                         <div class="page-actions">
@@ -89,17 +104,17 @@
                             @foreach ($students as $enrollment)
                                 @php
                                     $record = $records->get($enrollment->student_id);
-                                    $current = old('statuses.'.$enrollment->student_id, $record?->status ?? 'present');
+                                    $current = old('statuses.'.$enrollment->student_id, $record?->status);
                                     $note = old('notes.'.$enrollment->student_id, $record?->note);
                                 @endphp
-                                <tr>
+                                <tr data-search="{{ Str::lower(($enrollment->student?->full_name ?? '').' '.($enrollment->student?->student_code ?? '')) }}" x-show="!studentSearch || $el.dataset.search.includes(studentSearch.toLowerCase())">
                                     <td class="muted">{{ $enrollment->roll_no }}</td>
                                     <td>
                                         <div class="cell-main">
                                             <span class="table-avatar">{{ Str::substr($enrollment->student?->full_name ?? '?', 0, 1) }}</span>
                                             <div>
                                                 <div class="cell-title">{{ $enrollment->student?->full_name }}</div>
-                                                <div class="cell-sub">{{ $enrollment->student?->admission_no }}</div>
+                                                <div class="cell-sub">Student ID: {{ $enrollment->student?->student_code }}</div>
                                             </div>
                                         </div>
                                     </td>
@@ -125,6 +140,7 @@
                                     <td>
                                         @if ($record)
                                             <x-badge color="success">Saved</x-badge>
+                                            <div class="cell-sub">{{ $record->markedBy?->name ?? 'Account unavailable' }}</div>
                                         @else
                                             <x-badge color="muted">New</x-badge>
                                         @endif
@@ -136,8 +152,14 @@
                 </div>
                 @can('attendance.manage')
                     <div class="form-section" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-                        <span class="muted">Existing records are updated in place. Marks are stamped with your account.</span>
-                        <x-button type="submit" variant="primary" icon="save">Save attendance</x-button>
+                        <span class="muted">
+                            @if ($holiday)
+                                {{ __('Attendance is disabled on this holiday.') }}
+                            @else
+                                New students stay unmarked until selected. Existing records update in place and show who saved them.
+                            @endif
+                        </span>
+                        <x-button type="submit" variant="primary" icon="save" :disabled="$holiday !== null">{{ __('Save attendance') }}</x-button>
                     </div>
                 @endcan
             </div>

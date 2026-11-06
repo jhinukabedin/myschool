@@ -22,7 +22,6 @@
                     <div class="info-list">
                         <div><b>নাম</b><span>{{ $student->full_name }}</span></div>
                         <div><b>Student ID</b><span class="mono">{{ $student->student_code ?? '—' }}</span></div>
-                        <div><b>ভর্তি নম্বর</b><span class="mono">{{ $student->admission_no }}</span></div>
                         <div><b>শ্রেণি</b><span>{{ $enrollment?->class?->name ?? '—' }}</span></div>
                         <div><b>শাখা</b><span>{{ $enrollment?->section?->name ?? '—' }}</span></div>
                         <div><b>রোল</b><span class="mono">{{ $enrollment?->roll_no ?? '—' }}</span></div>

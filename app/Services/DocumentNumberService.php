@@ -32,6 +32,10 @@ class DocumentNumberService
         });
     }
 
+    /**
+     * @deprecated Student IDs now use StudentCodeService (YY+CLASS_CODE+SERIAL).
+     * Kept for audit/history compatibility only — new admissions do not use it.
+     */
     public function admissionNumber(int $year): string
     {
         return $this->next('admission:'.$year, 'ADM-'.$year.'-', 4);

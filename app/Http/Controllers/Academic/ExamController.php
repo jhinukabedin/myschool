@@ -6,14 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreExamRequest;
 use App\Models\AcademicSession;
 use App\Models\ClassSubject;
+use App\Models\ClassSubjectMarkOverride;
 use App\Models\Examination;
 use App\Models\ExaminationSubject;
 use App\Models\GradingScheme;
 use App\Models\Mark;
 use App\Models\SchoolClass;
 use App\Models\Subject;
+use App\Models\SubjectMarkDefault;
 use App\Services\AuditLogService;
 use App\Services\ExamResultService;
+use App\Services\MarksDistributionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +27,8 @@ class ExamController extends Controller
 {
     public function __construct(
         private readonly AuditLogService $audit,
-        private readonly ExamResultService $results
+        private readonly ExamResultService $results,
+        private readonly MarksDistributionService $distributions
     ) {}
 
     public function index(Request $request): View
@@ -48,16 +52,19 @@ class ExamController extends Controller
 
     public function create(): View
     {
-        return view('academics.exams.form', [
-            'exam' => new Examination([
+        $exam = new Examination([
                 'academic_session_id' => current_session()?->id,
                 'status' => 'draft',
                 'exam_type' => 'term',
                 'start_date' => now()->toDateString(),
                 'end_date' => now()->addDays(7)->toDateString(),
-            ]),
+            ]);
+
+        return view('academics.exams.form', [
+            'exam' => $exam,
             'sessions' => AcademicSession::orderByDesc('start_date')->get(),
             'gradingSchemes' => GradingScheme::query()->active()->orderBy('name')->get(),
+            ...$this->distributionFormData($exam),
         ]);
     }
 
@@ -66,7 +73,12 @@ class ExamController extends Controller
         $data = $request->validated();
         $this->guardPublicationStatus($data);
 
-        $exam = Examination::create($data);
+        $exam = DB::transaction(function () use ($data, $request) {
+            $exam = Examination::create($data);
+            $this->saveExamDistributions($request, $exam);
+
+            return $exam;
+        });
 
         $this->audit->record(
             'exam_created',
@@ -108,6 +120,7 @@ class ExamController extends Controller
             'gradingSchemes' => GradingScheme::query()->active()->where(fn ($query) => $query
                 ->whereNull('academic_session_id')
                 ->orWhere('academic_session_id', $exam->academic_session_id))->orderBy('name')->get(),
+            ...$this->distributionFormData($exam),
         ]);
     }
 
@@ -116,8 +129,15 @@ class ExamController extends Controller
         $data = $request->validated();
         $this->guardPublicationStatus($data, $exam);
 
+        if ((int) $data['academic_session_id'] !== (int) $exam->academic_session_id && $exam->subjects()->exists()) {
+            throw ValidationException::withMessages(['academic_session_id' => 'The academic session cannot be changed after subjects have been added to the exam.']);
+        }
+
         $before = $exam->getAttributes();
-        $exam->update($data);
+        DB::transaction(function () use ($request, $exam, $data) {
+            $exam->update($data);
+            $this->saveExamDistributions($request, $exam);
+        });
 
         $this->audit->record(
             'exam_updated',
@@ -295,6 +315,173 @@ class ExamController extends Controller
             throw ValidationException::withMessages([
                 'status' => 'Use “Unpublish and reopen” on the examination page so the change is recorded with a reason.',
             ]);
+        }
+    }
+
+    private function distributionFormData(Examination $exam): array
+    {
+        $classes = SchoolClass::ordered()->get();
+        $selectedSessionId = (int) old('academic_session_id', $exam->academic_session_id);
+        $assigned = ClassSubject::query()
+            ->with(['subject'])
+            ->whereHas('subject')
+            ->orderBy('class_id')->orderBy('subject_id')->get();
+        $existing = $exam->exists
+            ? $exam->subjects()->with('subject')->get()->keyBy(fn (ExaminationSubject $row) => $row->class_id.'_'.$row->subject_id)
+            : collect();
+        $globalDefaults = SubjectMarkDefault::query()->get()->keyBy('subject_id');
+        $classOverrides = ClassSubjectMarkOverride::query()->get()->keyBy(fn ($row) => $row->class_id.'_'.$row->subject_id);
+        $defaults = [];
+        $configs = [];
+
+        foreach ($assigned as $classSubject) {
+            $subjectKey = $classSubject->class_id.'_'.$classSubject->subject_id;
+            $key = $classSubject->academic_session_id.'_'.$subjectKey;
+            $resolved = $this->distributions->resolve($classSubject->class_id, $classSubject->subject, $classOverrides, $globalDefaults);
+            $defaults[$key] = [
+                'session_id' => (int) $classSubject->academic_session_id,
+                'class_id' => (int) $classSubject->class_id,
+                'subject_id' => (int) $classSubject->subject_id,
+                'subject_name' => $classSubject->subject->name,
+                'full_marks' => $resolved['full_marks'],
+                'pass_marks' => $resolved['pass_marks'],
+                'components' => $resolved['components'],
+                'source' => $resolved['source'],
+                'exam_date' => null,
+                'start_time' => null,
+                'duration_minutes' => null,
+            ];
+            $snapshot = (int) $classSubject->academic_session_id === (int) $exam->academic_session_id ? $existing->get($subjectKey) : null;
+            $configs[$key] = $snapshot ? [
+                ...$defaults[$key],
+                'full_marks' => (float) $snapshot->full_marks,
+                'pass_marks' => (float) $snapshot->pass_marks,
+                'components' => array_values($snapshot->components ?? []),
+                'source' => 'Exam snapshot',
+                'exam_date' => $snapshot->exam_date?->toDateString(),
+                'start_time' => $snapshot->start_time ? substr((string) $snapshot->start_time, 0, 5) : null,
+                'duration_minutes' => $snapshot->duration_minutes,
+            ] : $defaults[$key];
+        }
+
+        foreach ($existing as $subjectKey => $snapshot) {
+            $key = $exam->academic_session_id.'_'.$subjectKey;
+            if (isset($configs[$key])) {
+                continue;
+            }
+            $snapshot->loadMissing('subject');
+            $fallback = $this->distributions->resolve($snapshot->class_id, $snapshot->subject, $classOverrides, $globalDefaults);
+            $defaults[$key] = [
+                'session_id' => (int) $exam->academic_session_id,
+                'class_id' => (int) $snapshot->class_id,
+                'subject_id' => (int) $snapshot->subject_id,
+                'subject_name' => $snapshot->subject?->name ?? 'Subject',
+                ...$fallback,
+                'exam_date' => null, 'start_time' => null, 'duration_minutes' => null,
+            ];
+            $configs[$key] = [
+                ...$defaults[$key],
+                'full_marks' => (float) $snapshot->full_marks,
+                'pass_marks' => (float) $snapshot->pass_marks,
+                'components' => array_values($snapshot->components ?? []),
+                'source' => 'Exam snapshot',
+                'exam_date' => $snapshot->exam_date?->toDateString(),
+                'start_time' => $snapshot->start_time ? substr((string) $snapshot->start_time, 0, 5) : null,
+                'duration_minutes' => $snapshot->duration_minutes,
+            ];
+        }
+
+        $oldDistribution = old('distribution');
+        if (is_array($oldDistribution)) {
+            foreach ($oldDistribution as $classId => $subjects) {
+                foreach ($subjects as $subjectId => $row) {
+                    $key = $selectedSessionId.'_'.$classId.'_'.$subjectId;
+                    if (isset($configs[$key])) {
+                        $configs[$key] = [...$configs[$key], ...$row];
+                    }
+                }
+            }
+        }
+
+        $selectedClasses = old('selected_classes', $existing->pluck('class_id')->unique()->values()->all());
+        $selectedClasses = array_map('intval', (array) $selectedClasses);
+
+        return [
+            'classes' => $classes,
+            'distributionDefaults' => $defaults,
+            'distributionConfigs' => $configs,
+            'selectedClasses' => $selectedClasses,
+            'selectedSessionId' => $selectedSessionId,
+            'existingMarksCount' => $exam->exists ? $exam->subjects()->withCount('marks')->get()->sum('marks_count') : 0,
+            'distributionLocked' => $exam->exists && ($exam->result_published_at !== null || $exam->resultSnapshots()->exists()),
+        ];
+    }
+
+    private function saveExamDistributions(Request $request, Examination $exam): void
+    {
+        $data = $request->validate([
+            'selected_classes' => ['nullable', 'array'],
+            'selected_classes.*' => ['integer', 'exists:classes,id'],
+            'distribution' => ['nullable', 'array'],
+            'distribution.*.*.full_marks' => ['required', 'numeric', 'gt:0', 'max:999'],
+            'distribution.*.*.pass_marks' => ['required', 'numeric', 'min:0', 'max:999'],
+            'distribution.*.*.components' => ['nullable', 'array'],
+            'distribution.*.*.components.*.name' => ['nullable', 'string', 'max:80'],
+            'distribution.*.*.components.*.full_marks' => ['nullable', 'numeric', 'min:0', 'max:999'],
+            'distribution.*.*.components.*.pass_marks' => ['nullable', 'numeric', 'min:0', 'max:999'],
+            'distribution.*.*.components.*.requires_pass' => ['nullable', 'boolean'],
+            'distribution.*.*.exam_date' => ['nullable', 'date'],
+            'distribution.*.*.start_time' => ['nullable', 'date_format:H:i'],
+            'distribution.*.*.duration_minutes' => ['nullable', 'integer', 'min:1', 'max:600'],
+            'confirm_distribution_change' => ['nullable', 'boolean'],
+        ]);
+        $selectedClassIds = collect($data['selected_classes'] ?? [])->map(fn ($id) => (int) $id)->unique()->values();
+        $entries = $data['distribution'] ?? [];
+
+        if ($entries === []) {
+            return;
+        }
+
+        $assigned = ClassSubject::query()
+            ->where('academic_session_id', $exam->academic_session_id)
+            ->whereIn('class_id', $selectedClassIds)
+            ->get()->keyBy(fn (ClassSubject $row) => $row->class_id.'_'.$row->subject_id);
+
+        foreach ($entries as $classId => $subjects) {
+            foreach ($subjects as $subjectId => $entry) {
+                $key = $classId.'_'.$subjectId;
+                $isExistingExamPaper = $exam->subjects()->where('class_id', $classId)->where('subject_id', $subjectId)->exists();
+                if (! $selectedClassIds->contains((int) $classId) || (! $assigned->has($key) && ! $isExistingExamPaper)) {
+                    throw ValidationException::withMessages(['distribution' => 'Every configured subject must belong to a selected class in the examination session.']);
+                }
+
+                $config = $this->distributions->normalize($entry);
+                $examSubject = $exam->subjects()->where('class_id', $classId)->where('subject_id', $subjectId)->first();
+                $existingConfig = $examSubject ? $this->distributions->normalize([
+                    'full_marks' => $examSubject->full_marks,
+                    'pass_marks' => $examSubject->pass_marks,
+                    'components' => $examSubject->components ?? [],
+                ]) : null;
+                $changed = $existingConfig && $existingConfig !== $config;
+
+                if ($changed && ($exam->result_published_at !== null || $exam->resultSnapshots()->exists())) {
+                    throw ValidationException::withMessages(['distribution' => 'This examination has published result snapshots. Its stored marks distribution cannot be changed.']);
+                }
+
+                if ($changed && $examSubject->marks()->exists() && ! (bool) ($data['confirm_distribution_change'] ?? false)) {
+                    throw ValidationException::withMessages(['confirm_distribution_change' => 'Marks already exist. Confirm the marks distribution change before saving.']);
+                }
+
+                $exam->subjects()->updateOrCreate(
+                    ['class_id' => $classId, 'subject_id' => $subjectId],
+                    [
+                        ...$config,
+                        'exam_date' => $entry['exam_date'] ?? null,
+                        'start_time' => $entry['start_time'] ?? null,
+                        'duration_minutes' => $entry['duration_minutes'] ?? null,
+                    ]
+                );
+            }
         }
     }
 

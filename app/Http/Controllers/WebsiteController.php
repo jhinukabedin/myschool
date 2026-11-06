@@ -3,12 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\AdmissionEnquiry;
+use App\Models\ClassRoutine;
 use App\Models\ContactMessage;
 use App\Models\Examination;
 use App\Models\Notice;
+use App\Models\ResultSnapshot;
 use App\Models\SchoolClass;
+use App\Models\Student;
 use App\Models\WebsiteContent;
 use App\Services\DocumentNumberService;
+use App\Services\ExamResultService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +20,10 @@ use Illuminate\View\View;
 
 class WebsiteController extends Controller
 {
-    public function __construct(private readonly DocumentNumberService $numbers) {}
+    public function __construct(
+        private readonly DocumentNumberService $numbers,
+        private readonly ExamResultService $results
+    ) {}
 
     public function home(): View
     {
@@ -253,11 +260,19 @@ class WebsiteController extends Controller
         return view('website.downloads', compact('items', 'syllabusItems'));
     }
 
-    public function classRoutine(): View
+    public function classRoutine(Request $request): View
     {
-        $items = WebsiteContent::query()->ofType('routine')->publiclyVisible()->orderBy('sort_order')->get();
+        $session = current_session();
+        $baseQuery = ClassRoutine::query()->where('is_published', true)
+            ->when($session, fn ($query) => $query->where('academic_session_id', $session->id));
+        $classIds = (clone $baseQuery)->select('class_id')->distinct()->pluck('class_id');
+        $classes = SchoolClass::query()->whereIn('id', $classIds)->ordered()->get();
+        $selectedClassId = $request->filled('class_id') ? $request->integer('class_id') : null;
+        $routines = (clone $baseQuery)->with(['academicSession', 'class', 'section'])
+            ->when($selectedClassId, fn ($query) => $query->where('class_id', $selectedClassId))
+            ->orderBy('class_id')->orderBy('section_id')->get();
 
-        return view('website.class-routine', compact('items'));
+        return view('website.class-routine', compact('classes', 'routines', 'session', 'selectedClassId'));
     }
 
     public function videoGallery(): View
@@ -265,6 +280,78 @@ class WebsiteController extends Controller
         $items = WebsiteContent::query()->ofType('video')->publiclyVisible()->orderBy('sort_order')->get();
 
         return view('website.video-gallery', compact('items'));
+    }
+
+    /**
+     * Public result search. Only exams that have actually published result
+     * snapshots are searchable, and the admin can hide the feed entirely.
+     */
+    public function results(Request $request): View
+    {
+        $exams = Examination::query()
+            ->where('status', 'published')
+            ->whereNotNull('result_published_at')
+            ->whereHas('resultSnapshots')
+            ->with('academicSession')
+            ->withCount('resultSnapshots')
+            ->orderByDesc('result_published_at')
+            ->get();
+
+        $feedEnabled = school_setting('website_result_search_enabled', '1') === '1';
+        $showFeed = $feedEnabled && $exams->isNotEmpty();
+
+        $selectedExam = null;
+        $student = null;
+        $snapshot = null;
+        $result = null;
+        $lookup = '';
+        $lookupError = null;
+        $searched = false;
+
+        if ($showFeed) {
+            $examId = $request->integer('exam_id');
+            $selectedExam = $exams->firstWhere('id', $examId) ?? $exams->first();
+            $lookup = trim($request->string('student_id')->toString());
+
+            if ($lookup !== '') {
+                $searched = true;
+
+                $student = Student::query()->where('student_code', $lookup)->first()
+                    ?? Student::query()->where('admission_no', $lookup)->first();
+
+                if (! $student) {
+                    $lookupError = 'এই আইডি দিয়ে কোনো শিক্ষার্থী পাওয়া যায়নি। আইডি নম্বরটি আবার যাচাই করুন।';
+                } else {
+                    $snapshot = ResultSnapshot::query()
+                        ->where('examination_id', $selectedExam->id)
+                        ->where('student_id', $student->id)
+                        ->first();
+
+                    if (! $snapshot) {
+                        $lookupError = 'এই শিক্ষার্থীর জন্য নির্বাচিত পরীক্ষার ফলাফল এখনো প্রকাশিত হয়নি।';
+                    } else {
+                        $result = $this->results->resultFromSnapshot($snapshot);
+                    }
+                }
+            }
+        }
+
+        return view('website.results', [
+            'showFeed' => $showFeed,
+            'feedEnabled' => $feedEnabled,
+            'exams' => $exams,
+            'selectedExam' => $selectedExam,
+            'student' => $student,
+            'snapshot' => $snapshot,
+            'result' => $result,
+            'lookup' => $lookup,
+            'lookupError' => $lookupError,
+            'searched' => $searched,
+            'resultTitle' => school_setting('website_result_title') ?: 'রেজাল্ট',
+            'resultSubtitle' => school_setting('website_result_subtitle') ?: 'শিক্ষার্থী আইডি দিয়ে ফলাফল খুঁজুন',
+            'resultHelp' => school_setting('website_result_help') ?: 'শিক্ষার্থীর আইডি নম্বর লিখুন (যেমন: 2601001)।',
+            'resultEmptyMessage' => school_setting('website_result_empty_message') ?: 'এই মুহূর্তে কোনো রেজাল্ট পাবলিশ হয়নি',
+        ]);
     }
 
     public function contact(): View
@@ -323,6 +410,7 @@ class WebsiteController extends Controller
             ['url' => route('website.downloads'), 'priority' => '0.6'],
             ['url' => route('website.class-routine'), 'priority' => '0.6'],
             ['url' => route('website.video-gallery'), 'priority' => '0.6'],
+            ['url' => route('website.results'), 'priority' => '0.7'],
             ['url' => route('website.contact'), 'priority' => '0.7'],
             ['url' => route('website.privacy'), 'priority' => '0.3'],
         ];

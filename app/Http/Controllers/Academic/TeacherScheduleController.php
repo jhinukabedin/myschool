@@ -50,7 +50,9 @@ class TeacherScheduleController extends Controller
             'sessions' => AcademicSession::orderByDesc('start_date')->get(),
             'selectedSessionId' => $sessionId,
             'days' => $this->schedule->workingDays(),
-            'slots' => $this->schedule->activeSlots(),
+            'slots' => $this->schedule->activeSlotsForClasses(
+                $entries->map(fn (RoutineEntry $entry) => (int) $entry->routine?->class_id)->filter()->unique()->values()->all()
+            ),
             'entries' => $entries,
             'entryMap' => $entryMap,
         ]);

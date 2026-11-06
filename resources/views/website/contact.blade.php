@@ -53,12 +53,7 @@
                 <p>রবি – বৃহস্পতি: সকাল ৮:০০ – বিকাল ৪:০০</p>
                 <p>শুক্র ও শনিবার: বন্ধ</p>
             </div>
-            <div class="card contact-card">
-                <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">দ্রুত লিংক</h3>
-                <a href="{{ route('website.admission') }}" style="display:block;padding:6px 0">ভর্তি তথ্য</a>
-                <a href="{{ route('website.notices') }}" style="display:block;padding:6px 0">নোটিশ বোর্ড</a>
-                <a href="{{ route('website.about') }}" style="display:block;padding:6px 0">বিদ্যালয় পরিচিতি</a>
-            </div>
+            @include('website._sidebar')
         </aside>
     </div></section>
 @endsection

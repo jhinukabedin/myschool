@@ -14,6 +14,11 @@ class EnsureUserHasPermission
 
         abort_unless($user && $user->is_active, 403, 'Your account is not active.');
 
+        // Student and parent accounts never use the administration panel.
+        if (in_array($user->role?->slug, config('school.portal_only_roles', []), true)) {
+            return redirect()->route($user->homeRouteName());
+        }
+
         foreach ($permissions as $permission) {
             if (str_contains($permission, '|')) {
                 $any = collect(explode('|', $permission))->contains(fn ($p) => $user->hasPermission($p));

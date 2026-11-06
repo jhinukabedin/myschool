@@ -25,7 +25,7 @@
 
 
     @can('settings.manage')
-        <form method="POST" action="{{ route('settings.update') }}">
+        <form method="POST" action="{{ route('settings.update') }}" enctype="multipart/form-data">
             @csrf
             @method('PUT')
 
@@ -35,7 +35,9 @@
                     <div class="form-section">
                         <div class="stack">
                             <x-input name="school_name" label="School name" :value="$setting('school_name')" required />
+                            <x-input name="school_established_year" label="Established year" type="number" :value="$setting('school_established_year')" min="1800" max="{{ now()->year }}" placeholder="e.g. 1985" />
                             <x-input name="school_tagline" label="Tagline" :value="$setting('school_tagline')" />
+                            <x-input name="school_shift" label="School shift" :value="$setting('school_shift', 'Morning Shift')" required maxlength="80" placeholder="Morning Shift" help="Shown with the school identity throughout the management system." />
                             <x-input name="school_address" label="Address" :value="$setting('school_address')" />
                             <div class="form-grid">
                                 <x-input name="school_phone" label="Phone" :value="$setting('school_phone')" />
@@ -63,6 +65,27 @@
                     </div>
                 </div>
             </div>
+
+            @if (auth()->user()?->isSuperAdmin())
+                <div class="card" style="margin-top:16px">
+                    <div class="card-header">
+                        <div>
+                            <h3 class="card-title">Print Footer — Developer Information</h3>
+                            <p class="card-sub">Printed on attendance and other printable reports, receipts, result sheets and routines.</p>
+                        </div>
+                        <x-badge color="info">Super Admin only</x-badge>
+                    </div>
+                    <div class="form-section">
+                        <div class="form-grid">
+                            <x-input name="report_developer_name" label="Developed by" :value="$setting('report_developer_name', 'EduSphere Development')" required maxlength="150" placeholder="Developer or company name" />
+                            <x-input name="report_developer_website" label="Developer website" type="url" :value="$setting('report_developer_website')" placeholder="https://example.com" />
+                            <x-input name="report_developer_email" label="Developer email" type="email" :value="$setting('report_developer_email')" />
+                            <x-input name="report_developer_phone" label="Developer phone" :value="$setting('report_developer_phone')" maxlength="40" />
+                        </div>
+                        <div class="info-box" style="margin-top:12px">Only a Super Admin can change this information. It appears in the footer when reports and other documents are printed or saved as PDF.</div>
+                    </div>
+                </div>
+            @endif
 
             <div class="card" style="margin-top:16px">
                 <div class="card-header"><div><h3 class="card-title">Public Website Identity</h3><p class="card-sub">Shown on the public website. Leave blank to use the built-in defaults.</p></div></div>
@@ -160,6 +183,44 @@
 
                             <div class="info-box">The Bangla date uses the revised Bangladesh calendar (2019): the year starts on 14 April, Falgun has 29 or 30 days and Chaitra has 30 days. The language setting controls weekday, month names, year suffix and numerals together, so Bangla and English numerals are never mixed.</div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+                <div class="card-header"><div><h3 class="card-title">Localization &amp; Display</h3><p class="card-sub">Language, numerals and font preferences</p></div></div>
+                <div class="form-section">
+                    <div class="stack">
+                        <label class="checkbox">
+                            <input type="checkbox" name="bangla_number" value="1" @checked(filter_var($setting('bangla_number', '0'), FILTER_VALIDATE_BOOL))>
+                            <span>{{ __('Show Bangla numerals when Bangla language is selected') }}</span>
+                        </label>
+                        <div class="info-box">{{ __('When enabled, digits are converted to Bangla numerals (০-৯) on supported pages while Bangla is active.') }}</div>
+                        <x-select name="font_bn" label="Bangla font" :options="[
+                            'Hind Siliguri' => 'Hind Siliguri',
+                            'Noto Sans Bengali' => 'Noto Sans Bengali',
+                            'Noto Serif Bengali' => 'Noto Serif Bengali',
+                            'Baloo Da 2' => 'Baloo Da 2',
+                            'Anek Bangla' => 'Anek Bangla',
+                        ]" :selected="$setting('font_bn', 'Hind Siliguri')" />
+                        <x-select name="font_en" label="English font" :options="[
+                            'Segoe UI' => 'Segoe UI',
+                            'Inter' => 'Inter',
+                            'Roboto' => 'Roboto',
+                            'Poppins' => 'Poppins',
+                            'Lato' => 'Lato',
+                            'Open Sans' => 'Open Sans',
+                            'Montserrat' => 'Montserrat',
+                        ]" :selected="$setting('font_en', 'Segoe UI')" />
+                        <div class="info-box">{{ __('Font changes apply after saving and reloading the page.') }}</div>
+                        <label class="field">
+                            <span class="field-label">{{ __('Upload custom font (TTF/WOFF2)') }}</span>
+                            <input type="file" name="custom_font" accept=".ttf,.woff,.woff2,.otf" class="input">
+                            <span class="field-hint">{{ __('Upload a custom font file to use as the Bangla font. Max 5 MB.') }}</span>
+                        </label>
+                        @if ($setting('custom_font_path'))
+                            <div class="info-box">{{ __('Custom font uploaded:') }} {{ basename($setting('custom_font_path')) }}</div>
+                        @endif
                     </div>
                 </div>
             </div>

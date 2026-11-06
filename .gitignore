@@ -5,7 +5,10 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/fonts
 /vendor
+/scratch/*.jar
+/scratch/*.log
 .env
 .env.backup
 .env.production

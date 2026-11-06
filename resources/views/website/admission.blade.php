@@ -57,6 +57,7 @@
             <p style="margin-top:18px"><a class="btn btn-purple" href="{{ route('website.admission.apply') }}">অনলাইনে আবেদন করুন</a></p>
         </article>
         <aside class="stack" style="display:flex;flex-direction:column;gap:14px">
+            @include('website._sidebar')
             <div class="card contact-card">
                 <h3 style="margin:0 0 10px;color:var(--navy);font-family:'Noto Serif Bengali'">ক্লাসসমূহ</h3>
                 @forelse ($classes as $class)

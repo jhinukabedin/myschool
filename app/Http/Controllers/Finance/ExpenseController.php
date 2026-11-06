@@ -10,6 +10,7 @@ use App\Models\ExpenseCategory;
 use App\Services\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -22,7 +23,8 @@ class ExpenseController extends Controller
         $session = current_session();
 
         $expenses = Expense::query()
-            ->with(['category', 'recordedBy', 'academicSession'])
+            ->with(['category', 'recordedBy', 'academicSession', 'items'])
+            ->withCount('items')
             ->when($session, fn ($query) => $query->where('academic_session_id', $session->id))
             ->when($request->filled('category_id'), fn ($query) => $query->where('expense_category_id', $request->integer('category_id')))
             ->when($request->filled('from'), fn ($query) => $query->whereDate('expense_date', '>=', $request->date('from')))
@@ -70,19 +72,27 @@ class ExpenseController extends Controller
     public function store(StoreExpenseRequest $request): RedirectResponse
     {
         $data = $request->validated();
-        unset($data['receipt']);
+        $items = $this->normaliseItems($data['items'] ?? []);
+        unset($data['items'], $data['receipt']);
 
         if ($request->hasFile('receipt')) {
             $data['receipt_path'] = $request->file('receipt')->store('expenses', 'public');
         }
 
+        $data['amount'] = $this->itemsTotal($items);
         $data['recorded_by'] = $request->user()->id;
-        $expense = Expense::create($data);
+
+        $expense = DB::transaction(function () use ($data, $items) {
+            $expense = Expense::create($data);
+            $this->syncItems($expense, $items);
+
+            return $expense;
+        });
 
         $this->audit->record(
             'expense_recorded',
             'Finance',
-            "Expense “{$expense->title}” of ".money($expense->amount).' recorded',
+            "Expense “{$expense->title}” of ".money($expense->amount).' recorded with '.count($items).' item(s)',
             $expense,
             null,
             $expense->getAttributes()
@@ -93,6 +103,8 @@ class ExpenseController extends Controller
 
     public function edit(Expense $expense): View
     {
+        $expense->load('items');
+
         return view('finance.expenses.form', [
             'expense' => $expense,
             'categories' => ExpenseCategory::orderBy('name')->get(),
@@ -103,7 +115,8 @@ class ExpenseController extends Controller
     public function update(StoreExpenseRequest $request, Expense $expense): RedirectResponse
     {
         $data = $request->validated();
-        unset($data['receipt']);
+        $items = $this->normaliseItems($data['items'] ?? []);
+        unset($data['items'], $data['receipt']);
         $before = $expense->getAttributes();
 
         if ($request->hasFile('receipt')) {
@@ -113,7 +126,12 @@ class ExpenseController extends Controller
             $data['receipt_path'] = $request->file('receipt')->store('expenses', 'public');
         }
 
-        $expense->update($data);
+        $data['amount'] = $this->itemsTotal($items);
+
+        DB::transaction(function () use ($expense, $data, $items) {
+            $expense->update($data);
+            $this->syncItems($expense, $items);
+        });
 
         $this->audit->record(
             'expense_updated',
@@ -125,6 +143,55 @@ class ExpenseController extends Controller
         );
 
         return redirect()->route('expenses.index')->with('success', 'Expense updated.');
+    }
+
+    /**
+     * Keep only complete item rows and compute each line amount defensively
+     * on the server (never trust the browser total).
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array{description: string, quantity: float, unit_price: float, amount: float, sort_order: int}>
+     */
+    private function normaliseItems(array $items): array
+    {
+        $normalised = [];
+
+        foreach (array_values($items) as $index => $item) {
+            $description = trim((string) ($item['description'] ?? ''));
+            $quantity = max(0.001, round((float) ($item['quantity'] ?? 1), 3));
+            $unitPrice = max(0, round((float) ($item['unit_price'] ?? 0), 2));
+
+            if ($description === '' && $unitPrice <= 0) {
+                continue;
+            }
+
+            $normalised[] = [
+                'description' => $description !== '' ? $description : 'Item '.($index + 1),
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'amount' => round($quantity * $unitPrice, 2),
+                'sort_order' => $index,
+            ];
+        }
+
+        return $normalised;
+    }
+
+    private function itemsTotal(array $items): float
+    {
+        return round(array_sum(array_column($items, 'amount')), 2);
+    }
+
+    /**
+     * Replace the item lines of an expense with the submitted set.
+     */
+    private function syncItems(Expense $expense, array $items): void
+    {
+        $expense->items()->delete();
+
+        if ($items !== []) {
+            $expense->items()->createMany($items);
+        }
     }
 
     public function destroy(Expense $expense): RedirectResponse
