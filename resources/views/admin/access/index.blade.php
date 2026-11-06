@@ -76,6 +76,14 @@
                                 <p class="card-sub">{{ $selected->role?->name }} · tick the permissions this person may use</p>
                             </div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap">
+                                @if ($isSuper && $selected->is_active && $selected->id !== auth()->id())
+                                    <form method="POST" action="{{ route('impersonate.start', $selected) }}">
+                                        @csrf
+                                        <button type="submit" class="btn btn-secondary btn-sm" title="Open the system as {{ $selected->name }}">
+                                            <x-icon name="key" :size="14" /> Login as {{ \Illuminate\Support\Str::before($selected->name, ' ') }}
+                                        </button>
+                                    </form>
+                                @endif
                                 <form method="POST" action="{{ route('access.template', $selected) }}" onsubmit="return confirm('Replace the ticked permissions with the {{ $selected->role?->name }} template? You will still need to save.')">
                                     @csrf
                                     <button type="submit" class="btn btn-secondary btn-sm">Apply role template</button>

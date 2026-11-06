@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ImpersonationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
@@ -20,6 +21,13 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')->name('logout');
+
+// Super administrator impersonation. The stop route stays outside the module
+// lock so a portal or locked-module account can always return.
+Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])
+    ->middleware('auth')->name('impersonate.stop');
+Route::post('/impersonate/{user}', [ImpersonationController::class, 'start'])
+    ->middleware('auth')->name('impersonate.start');
 
 // Language switcher (available to guests and signed-in users).
 Route::get('/language/{locale}', \App\Http\Controllers\LocaleController::class)->name('language.switch');

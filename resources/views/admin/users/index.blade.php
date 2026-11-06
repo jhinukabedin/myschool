@@ -52,6 +52,12 @@
                             <td class="muted hide-md">{{ $user->last_login_at?->format('d M Y, h:i A') ?? 'Never' }}</td>
                             <td class="actions">
                                 <a href="{{ route('users.edit', $user) }}" class="btn-icon" title="Edit"><x-icon name="edit" :size="15" /></a>
+                                @if (auth()->user()->isSuperAdmin() && $user->id !== auth()->id() && $user->is_active)
+                                    <form method="POST" action="{{ route('impersonate.start', $user) }}">
+                                        @csrf
+                                        <button type="submit" class="btn-icon" title="Login as {{ $user->name }}"><x-icon name="key" :size="15" /></button>
+                                    </form>
+                                @endif
                                 @if ($user->id !== auth()->id())
                                     <form method="POST" action="{{ route('users.toggle', $user) }}">
                                         @csrf

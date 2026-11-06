@@ -75,6 +75,33 @@ class LoginController extends Controller
     public function destroy(Request $request): RedirectResponse
     {
         $user = $request->user();
+
+        // A super administrator who is checking another account must never lose
+        // their own session by pressing Sign out inside the impersonated view.
+        if ($impersonatorId = $request->session()->get('impersonator_id')) {
+            $impersonator = \App\Models\User::query()->find($impersonatorId);
+
+            if ($impersonator && $impersonator->isSuperAdmin()) {
+                $targetName = $user?->name ?? 'another user';
+
+                $request->session()->forget('impersonator_id');
+                Auth::login($impersonator);
+                $request->session()->regenerate();
+
+                $this->audit->record(
+                    'impersonation_stopped',
+                    'Security',
+                    "{$impersonator->name} returned from viewing as {$targetName}",
+                    $user,
+                    null,
+                    ['impersonator_id' => $impersonator->id]
+                );
+
+                return redirect()->route('dashboard')
+                    ->with('success', 'You are back in your own account.');
+            }
+        }
+
         $redirect = $user?->role?->slug === 'student'
             ? 'student.login'
             : ($user?->role?->slug === 'parent' ? 'parent.login' : 'login');

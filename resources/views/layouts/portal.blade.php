@@ -81,6 +81,7 @@
 </head>
 <body class="{{ $isStudent ? 'portal-student' : 'portal-classic' }}">
 <a class="skip-link" href="#portal-main">Skip to content</a>
+@include('layouts.partials.impersonation-banner')
 <header class="portal-header">
     <div class="portal-wrap header-inner">
         <a class="portal-brand" href="{{ route($portalUser?->homeRouteName() ?? 'website.home') }}">

@@ -102,6 +102,8 @@
 <body class="locale-{{ app()->getLocale() }}" x-data="{ sidebarOpen: false }">
     <a href="#main-content" class="skip-link">{{ __('Skip to content') }}</a>
 
+    @include('layouts.partials.impersonation-banner')
+
     <div class="app-shell">
         <div class="sidebar-overlay" x-show="sidebarOpen" x-cloak x-transition.opacity @click="sidebarOpen = false"></div>
 
